@@ -42,6 +42,7 @@ const EventSchema = new Schema(
     contacts: { type: [Schema.Types.Mixed], default: [] },
     photographers: { type: [Schema.Types.Mixed], default: [] },
     positions: { type: [Schema.Types.Mixed], default: [] },
+    preSpots: { type: [Schema.Types.Mixed], default: [] },
     tactic: { type: [Schema.Types.Mixed], default: [] },
     course: { type: Schema.Types.Mixed, default: null },
     documents: { type: [Schema.Types.Mixed], default: [] },

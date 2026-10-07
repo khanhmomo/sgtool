@@ -37,6 +37,7 @@ export function serializeEvent(doc: any): EventDTO {
     contacts: e.contacts || [],
     photographers: e.photographers || [],
     positions: e.positions || [],
+    preSpots: e.preSpots || [],
     tactic: e.tactic || [],
     course: e.course || null,
     documents: e.documents || [],

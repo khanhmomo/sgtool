@@ -93,6 +93,14 @@ export interface Position {
   status: PositionStatus;
 }
 
+export interface PreSpot {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  added?: boolean; // already imported into positions
+}
+
 export interface TacticRow {
   id: string;
   spot: string; // e.g. "Swim In", "Bike 1", "Finish Line"
@@ -116,6 +124,7 @@ export interface CourseLeg {
   points: CoursePoint[];
   distanceKm: number;
   color?: string; // custom polyline color override
+  source?: string; // e.g. "kmz" for legs imported from a KMZ file
 }
 
 export interface Course {
@@ -166,6 +175,7 @@ export interface EventDTO {
   contacts: Contact[];
   photographers: Photographer[];
   positions: Position[];
+  preSpots: PreSpot[];
   tactic: TacticRow[];
   course: Course | null;
   documents: EventDoc[];

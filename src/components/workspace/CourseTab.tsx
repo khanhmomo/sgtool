@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { unzipSync, strFromU8 } from "fflate";
 import dynamic from "next/dynamic";
 import {
   Route,
@@ -31,8 +32,9 @@ import {
 import { SPORT_META } from "@/lib/design";
 import { cn, fmtDistances, googleMapsUrl } from "@/lib/utils";
 import { analyzePosition } from "@/lib/geo";
+import { buildLeg } from "@/lib/gpx";
 import { extractCoords, parseLatLngText } from "@/lib/coords";
-import type { Position, PositionAnalysis } from "@/types";
+import type { CourseLeg, Position, PositionAnalysis, PreSpot } from "@/types";
 import type { TabProps } from "./EventWorkspace";
 
 const CourseMap = dynamic(() => import("@/components/CourseMap"), { ssr: false });
@@ -52,11 +54,14 @@ type EditingPosition = Position & { __isNew?: boolean };
 
 export default function CourseTab({ event, patch, saving }: TabProps) {
   const [positions, setPositions] = useState<Position[]>(event.positions);
+  const [preSpots, setPreSpots] = useState<PreSpot[]>(event.preSpots || []);
   const [course, setCourse] = useState(event.course);
   const [editing, setEditing] = useState<EditingPosition | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCourse, setShowCourse] = useState(true);
   const [showPositions, setShowPositions] = useState(true);
+  const [showPreSpots, setShowPreSpots] = useState(true);
+  const [showAddedSpots, setShowAddedSpots] = useState(true);
   const [addMode, setAddMode] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [resolveError, setResolveError] = useState("");
@@ -65,7 +70,10 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
   const [gpxError, setGpxError] = useState("");
   const [copiedAll, setCopiedAll] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [importingKmz, setImportingKmz] = useState(false);
+  const [kmzError, setKmzError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const kmzInput = useRef<HTMLInputElement>(null);
 
   const legs = course?.legs || [];
 
@@ -73,6 +81,94 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
   async function savePositions(next: Position[]) {
     setPositions(next);
     await patch({ positions: next });
+  }
+
+  // ── Pre-spots (imported from KMZ) ────────────────────────────────────────
+  async function savePreSpots(next: PreSpot[]) {
+    setPreSpots(next);
+    await patch({ preSpots: next });
+  }
+
+  /** Unzip a .kmz in the browser and pull every Point placemark into preSpots */
+  async function importKmz(file: File) {
+    setKmzError("");
+    setImportingKmz(true);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const entries = unzipSync(bytes);
+      const kmlName = Object.keys(entries).find((n) => n.toLowerCase().endsWith(".kml"));
+      if (!kmlName) throw new Error();
+      const kmlText = strFromU8(entries[kmlName]);
+      const doc = new DOMParser().parseFromString(kmlText, "application/xml");
+      if (doc.querySelector("parsererror")) throw new Error();
+      const found: PreSpot[] = [];
+      const foundLegs: CourseLeg[] = [];
+      doc.querySelectorAll("Placemark").forEach((pm) => {
+        const name = pm.querySelector("name")?.textContent?.trim() || "";
+        const pt = pm.querySelector("Point coordinates")?.textContent?.trim();
+        if (pt) {
+          const [lng, lat] = pt.split(",").map(Number);
+          if (!isFinite(lat) || !isFinite(lng)) return;
+          found.push({ id: `${Date.now()}-${found.length}`, name: name || `Spot ${found.length + 1}`, lat, lng });
+          return;
+        }
+        // LineString / MultiGeometry path → course leg
+        const line = pm.querySelector("LineString coordinates, MultiGeometry coordinates")?.textContent?.trim();
+        if (!line) return;
+        const raw = line
+          .split(/\s+/)
+          .map((c) => {
+            const [ln, la] = c.split(",").map(Number);
+            return isFinite(la) && isFinite(ln) ? { lat: la, lng: ln } : null;
+          })
+          .filter((c): c is { lat: number; lng: number } => !!c);
+        const leg = buildLeg(name || `Path ${foundLegs.length + 1}`, raw);
+        if (leg) foundLegs.push({ ...leg, source: "kmz" });
+      });
+      if (!found.length && !foundLegs.length) {
+        setKmzError("No pin spots or paths found in this KMZ file.");
+        return;
+      }
+      const keptLegs = (course?.legs || []).filter((l) => l.source !== "kmz");
+      if (foundLegs.length || keptLegs.length !== (course?.legs || []).length) {
+        // Re-import replaces prior KMZ legs; legs from GPX uploads stay
+        const nextCourse = {
+          fileName: file.name,
+          updatedAt: new Date().toISOString(),
+          legs: [...keptLegs, ...foundLegs],
+        };
+        setCourse(nextCourse);
+        await patch({ course: nextCourse });
+      }
+      // Re-import replaces the whole pre-spot list
+      await savePreSpots(found);
+    } catch {
+      setKmzError("Couldn't read that file — make sure it's a valid .kmz export.");
+    } finally {
+      setImportingKmz(false);
+      if (kmzInput.current) kmzInput.current.value = "";
+    }
+  }
+
+  /** Promote a pre-spot into the position list and flag it as added */
+  async function addPreSpot(ps: PreSpot) {
+    const p = newPosition(ps.lat, ps.lng);
+    p.photographer = ps.name; // spot name
+    p.mapLink = googleMapsUrl(ps.lat, ps.lng);
+    let newId = ps.name.trim() || p.id;
+    for (let n = 2; positions.some((x) => x.id === newId); n++) newId = `${ps.name} (${n})`;
+    p.id = newId;
+    const { __isNew, ...clean } = p;
+    void __isNew;
+    const nextPositions = [...positions, clean];
+    const nextPre = preSpots.map((s) => (s.id === ps.id ? { ...s, added: true } : s));
+    setPositions(nextPositions);
+    setPreSpots(nextPre);
+    await patch({ positions: nextPositions, preSpots: nextPre });
+  }
+
+  async function removePreSpot(id: string) {
+    await savePreSpots(preSpots.filter((s) => s.id !== id));
   }
 
   // ── GPX upload ───────────────────────────────────────────────────────────
@@ -219,8 +315,23 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
   }
 
   function removePosition(id: string) {
-    savePositions(positions.filter((p) => p.id !== id));
+    const removed = positions.find((p) => p.id === id);
+    const nextPositions = positions.filter((p) => p.id !== id);
+    setPositions(nextPositions);
     if (selectedId === id) setSelectedId(null);
+    // If the spot came from a pre-spot, mark it available again
+    const ps = removed
+      ? preSpots.find(
+          (s) => s.added && s.lat === removed.lat && s.lng === removed.lng && (s.name === removed.photographer || s.name === removed.id.replace(/ \(\d+\)$/, ""))
+        )
+      : undefined;
+    if (ps) {
+      const nextPre = preSpots.map((s) => (s.id === ps.id ? { ...s, added: false } : s));
+      setPreSpots(nextPre);
+      patch({ positions: nextPositions, preSpots: nextPre });
+    } else {
+      patch({ positions: nextPositions });
+    }
   }
 
   // ── copy helpers ─────────────────────────────────────────────────────────
@@ -299,6 +410,28 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
                 />
                 Positions
               </label>
+              {preSpots.length > 0 && (
+                <>
+                  <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <input
+                      type="checkbox"
+                      checked={showPreSpots}
+                      onChange={(e) => setShowPreSpots(e.target.checked)}
+                      className="accent-slate-500"
+                    />
+                    Show Pre-Spots
+                  </label>
+                  <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <input
+                      type="checkbox"
+                      checked={showAddedSpots}
+                      onChange={(e) => setShowAddedSpots(e.target.checked)}
+                      className="accent-green-600"
+                    />
+                    Show Added Spots
+                  </label>
+                </>
+              )}
               <input
                 ref={fileInput}
                 type="file"
@@ -315,16 +448,35 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
               >
                 <Upload size={14} /> {course ? "Add GPX" : "Upload GPX"}
               </Button>
+              <input
+                ref={kmzInput}
+                type="file"
+                accept=".kmz"
+                className="hidden"
+                onChange={(e) => e.target.files?.[0] && importKmz(e.target.files[0])}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                loading={importingKmz}
+                onClick={() => kmzInput.current?.click()}
+                title="Import pinned spots from a Google Earth .kmz file"
+              >
+                <MapPin size={14} /> Import KMZ
+              </Button>
             </div>
           }
         />
         <div className="p-4">
           {gpxError && <Notice kind="error" className="mb-3">{gpxError}</Notice>}
-          {course ? (
+          {kmzError && <Notice kind="error" className="mb-3">{kmzError}</Notice>}
+          {course || positions.length > 0 || preSpots.length > 0 ? (
             <>
-              <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                <span className="font-medium text-slate-700">{course.fileName}</span>
-              </div>
+              {course && (
+                <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                  <span className="font-medium text-slate-700">{course.fileName}</span>
+                </div>
+              )}
               <div className="mb-3 space-y-1.5">
                 {legs.map((l, i) => (
                   <div key={i} className="flex items-center gap-2">
@@ -379,6 +531,9 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
               <CourseMap
                 legs={legs}
                 positions={positions}
+                preSpots={preSpots.filter(
+                  (s) => (s.added && showAddedSpots) || (!s.added && showPreSpots)
+                )}
                 showCourse={showCourse}
                 showPositions={showPositions}
                 selectedId={selectedId}
@@ -517,6 +672,55 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
           })}
         </div>
       </Card>
+
+      {/* ── Pre-spot list (imported from KMZ) ── */}
+      {preSpots.length > 0 && (
+        <Card>
+          <CardHeader
+            title={`Pre-spot list (${preSpots.length})`}
+            icon={<MapPin size={15} className="text-slate-500" />}
+          />
+          <div className="divide-y divide-slate-100">
+            {preSpots.map((ps) => (
+              <div key={ps.id} className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+                <span
+                  className="flex h-6 max-w-52 items-center truncate rounded px-2 text-[11px] font-bold text-white"
+                  style={{ background: ps.added ? "#22c55e" : "#94a3b8" }}
+                  title={ps.name}
+                >
+                  {ps.name}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-400">
+                  {ps.lat.toFixed(5)}, {ps.lng.toFixed(5)}
+                </span>
+                {ps.added ? (
+                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">added</Badge>
+                ) : (
+                  <Button size="sm" variant="accent" onClick={() => addPreSpot(ps)}>
+                    <Plus size={13} /> Add to positions
+                  </Button>
+                )}
+                <a
+                  title="Open in Google Maps"
+                  href={googleMapsUrl(ps.lat, ps.lng)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <ExternalLink size={14} />
+                </a>
+                <button
+                  title="Remove pre-spot"
+                  onClick={() => removePreSpot(ps.id)}
+                  className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* ── Position editor modal ── */}
       {editing && (

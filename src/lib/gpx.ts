@@ -13,7 +13,7 @@ function num(v: unknown): number | null {
   return isFinite(n) ? n : null;
 }
 
-function buildLeg(name: string, rawPts: { lat: number; lng: number }[]): CourseLeg | null {
+export function buildLeg(name: string, rawPts: { lat: number; lng: number }[]): CourseLeg | null {
   if (rawPts.length < 2) return null;
   // cap point count so Mongo documents stay small and the map stays fast
   const MAX = 1500;

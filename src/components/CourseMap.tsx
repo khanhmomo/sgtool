@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { CourseLeg, Position } from "@/types";
+import type { CourseLeg, Position, PreSpot } from "@/types";
 import { SPORT_META } from "@/lib/design";
 import { fmtDistances } from "@/lib/utils";
 import type L from "leaflet";
@@ -9,6 +9,7 @@ import type L from "leaflet";
 interface Props {
   legs: CourseLeg[];
   positions: Position[];
+  preSpots?: PreSpot[];
   showCourse?: boolean;
   showPositions?: boolean;
   selectedId?: string | null;
@@ -25,6 +26,7 @@ interface Props {
 export default function CourseMap({
   legs,
   positions,
+  preSpots = [],
   showCourse = true,
   showPositions = true,
   selectedId,
@@ -132,6 +134,25 @@ export default function CourseMap({
         bounds.push([pos.lat, pos.lng]);
       });
     }
+
+    // Pre-spots imported from KMZ — grey until promoted into the position list
+    preSpots.forEach((ps) => {
+      const bg = ps.added ? "#16a34a" : "#94a3b8"; // bold green once added, grey otherwise
+      const icon = leaflet.divIcon({
+        className: "",
+        html: `<div class="pos-marker" style="background:${bg};min-width:30px;height:18px;padding:0 6px;opacity:${ps.added ? 1 : 0.85};${ps.added ? "outline:2px solid #ffffff;font-weight:800;" : ""}">${ps.name}</div>`,
+        iconSize: [ps.name.length * 7 + 14, 20],
+        iconAnchor: [(ps.name.length * 7 + 14) / 2, 10],
+      });
+      leaflet
+        .marker([ps.lat, ps.lng], { icon, interactive: false })
+        .bindTooltip(
+          `${ps.name} — pre-spot${ps.added ? " (added to position list)" : " (not added yet)"}`,
+          { direction: "top", offset: [0, -10] }
+        )
+        .addTo(posGroup);
+      bounds.push([ps.lat, ps.lng]);
+    });
 
     if (bounds.length) {
       map.fitBounds(leaflet.latLngBounds(bounds).pad(0.12));
