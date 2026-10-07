@@ -162,7 +162,7 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
               Shift {si + 1}
             </p>
           )}
-          <div className="overflow-x-auto rounded-md border border-[#FFED00]">
+          <div className="hidden overflow-x-auto rounded-md border border-[#FFED00] sm:block">
             <table className="w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="bg-[#FFED00] text-[10px] uppercase tracking-wider text-slate-900">
@@ -212,13 +212,41 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
               </tbody>
             </table>
           </div>
+          {/* Mobile: stacked station cards */}
+          <div className={cn("space-y-1.5 sm:hidden", si === 0 ? "[&>*]:bg-black [&>*]:text-[#FFED00]" : "[&>*]:bg-neutral-600 [&>*]:text-[#FFED00]")}>
+            {stations.map((st) => (
+              <div key={st.station} className="rounded-md border border-[#FFED00]/60 p-2.5">
+                <p className="mb-1 text-xs font-black uppercase tracking-wide">{st.station}</p>
+                <div className="flex flex-wrap items-center gap-1">
+                  {st.photographers.length
+                    ? st.photographers.map((p, i) => (
+                        <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(p, "bg-green-600"))}>{p}</span>
+                      ))
+                    : <span className="text-[11px] opacity-40">—</span>}
+                  {(st.breaks || []).length > 0 && (
+                    <span className="ml-auto text-[10px] font-bold opacity-80">
+                      {(st.breaks as HyroxBreakRange[]).map((b) => `${fmtT(b.start)}–${fmtT(b.end)}`).join(" · ")}
+                    </span>
+                  )}
+                </div>
+                {st.cover.length > 0 && (
+                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                    <span className="text-[9px] font-bold uppercase tracking-wider opacity-60">Cover</span>
+                    {st.cover.map((c, i) => (
+                      <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(c, "bg-blue-600"))}>{c}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       ))}
 
       {groups.length > 0 && (
         <div>
           <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Switch schedule</p>
-          <div className="overflow-x-auto rounded-md border border-[#FFED00]">
+          <div className="hidden overflow-x-auto rounded-md border border-[#FFED00] sm:block">
             <table className="w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="bg-[#FFED00] text-[10px] uppercase tracking-wider text-slate-900">
@@ -240,6 +268,21 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
               </tbody>
             </table>
           </div>
+          {/* Mobile: stacked group cards */}
+          <div className="space-y-1.5 sm:hidden">
+            {groups.map((g) => (
+              <div key={g.id} className="rounded-md border border-[#FFED00]/60 bg-black p-2.5">
+                <p className="mb-1 text-xs font-black uppercase tracking-wide text-slate-900">
+                  <span className="rounded bg-[#FFED00] px-1.5 py-0.5">{g.name}</span>
+                </p>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-bold text-[#FFED00]">
+                  {g.photographers.map((p, i) => (
+                    <span key={i}><span className="text-[9px] font-bold uppercase opacity-60">P{i + 1}</span> {p || "—"}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
           <p className="mt-1 text-[11px] text-slate-400">Photo 1 moves to Photo 2&apos;s station, 2 → 3, and so on.</p>
         </div>
       )}
@@ -252,7 +295,7 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                 <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   Break schedule — stations 1–3{shifts.length > 1 ? ` (Shift ${si + 1})` : ""}
                 </p>
-                <div className="overflow-x-auto rounded-md border border-[#FFED00]">
+                <div className="hidden overflow-x-auto rounded-md border border-[#FFED00] sm:block">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
                       <tr className="bg-[#FFED00] text-[10px] uppercase tracking-wider text-slate-900">
@@ -285,6 +328,32 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                       ))}
                     </tbody>
                   </table>
+                </div>
+                {/* Mobile: stacked station cards, one line per break */}
+                <div className="space-y-1.5 sm:hidden">
+                  {BREAK_STATIONS.map((station) => (
+                    <div
+                      key={station}
+                      className={cn(
+                        "rounded-md border border-[#FFED00]/60 p-2.5 text-[#FFED00]",
+                        si === 0 ? "bg-purple-900" : "bg-neutral-600"
+                      )}
+                    >
+                      <p className="mb-1 text-xs font-black uppercase tracking-wide">
+                        <span className="rounded bg-[#FFED00] px-1.5 py-0.5 text-slate-900">{station}</span>
+                      </p>
+                      <div className="space-y-0.5 text-xs font-bold">
+                        {t.times.map((b, bi) => (
+                          <div key={bi} className="flex items-baseline gap-2">
+                            <span className="shrink-0 whitespace-nowrap opacity-80">
+                              {fmtT(b.start)}–{fmtT(b.end)}
+                            </span>
+                            <span>{(t.rows?.[station] || [])[bi] || "—"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ) : null
