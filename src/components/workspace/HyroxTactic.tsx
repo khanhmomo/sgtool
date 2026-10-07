@@ -21,6 +21,11 @@ export const HYROX_STATIONS = [
   "Hero Wall",
 ];
 
+/** Row background per station (public view) — plain white for a clean read */
+const STATION_PASTEL: Record<string, string> = Object.fromEntries(
+  HYROX_STATIONS.map((s) => [s, "bg-white"])
+);
+
 /** Stations 1-3 self-manage their breaks (no jumper cover) */
 const BREAK_STATIONS = HYROX_STATIONS.slice(0, 3);
 
@@ -162,27 +167,24 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
               Shift {si + 1}
             </p>
           )}
-          <div className="hidden overflow-x-auto rounded-md border border-[#FFED00] sm:block">
+          <div className="hidden overflow-x-auto rounded-md border border-slate-900 sm:block">
             <table className="w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="bg-[#FFED00] text-[10px] uppercase tracking-wider text-slate-900">
-                  <th className="border border-slate-900/30 px-3 py-2">Station</th>
-                  <th className="border border-slate-900/30 px-3 py-2">Photographers</th>
-                  <th className="border border-slate-900/30 px-3 py-2">Breaks</th>
-                  <th className="border border-slate-900/30 px-3 py-2">Cover</th>
+                  <th className="border border-slate-900 px-3 py-2">Station</th>
+                  <th className="border border-slate-900 px-3 py-2">Photographers</th>
+                  <th className="border border-slate-900 px-3 py-2">Breaks</th>
+                  <th className="border border-slate-900 px-3 py-2">Cover</th>
                 </tr>
               </thead>
               <tbody>
                 {stations.map((st) => (
                   <tr
                     key={st.station}
-                    className={cn(
-                      "align-top",
-                      si === 0 ? "bg-black text-[#FFED00]" : "bg-neutral-600 text-[#FFED00]"
-                    )}
+                    className={cn("align-top text-slate-900", STATION_PASTEL[st.station] || "bg-slate-50")}
                   >
-                    <td className="border border-[#FFED00]/50 px-3 py-2 font-bold whitespace-nowrap">{st.station}</td>
-                    <td className="border border-[#FFED00]/50 px-3 py-2">
+                    <td className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">{st.station}</td>
+                    <td className="border border-slate-900 px-3 py-2">
                       {st.photographers.length ? (
                         <div className="flex flex-wrap gap-1">
                           {st.photographers.map((p, i) => (
@@ -191,14 +193,14 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                         </div>
                       ) : <span className="opacity-40">—</span>}
                     </td>
-                    <td className="border border-[#FFED00]/50 px-3 py-2 font-bold whitespace-nowrap">
+                    <td className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">
                       {(st.breaks || []).length
                         ? (st.breaks as HyroxBreakRange[]).map((b, i) => (
                             <div key={i}>{fmtT(b.start)} – {fmtT(b.end)}</div>
                           ))
                         : <span className="font-normal opacity-40">—</span>}
                     </td>
-                    <td className="border border-[#FFED00]/50 px-3 py-2">
+                    <td className="border border-slate-900 px-3 py-2">
                       {st.cover.length ? (
                         <div className="flex flex-wrap gap-1">
                           {st.cover.map((c, i) => (
@@ -213,9 +215,9 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
             </table>
           </div>
           {/* Mobile: stacked station cards */}
-          <div className={cn("space-y-1.5 sm:hidden", si === 0 ? "[&>*]:bg-black [&>*]:text-[#FFED00]" : "[&>*]:bg-neutral-600 [&>*]:text-[#FFED00]")}>
+          <div className="space-y-1.5 sm:hidden">
             {stations.map((st) => (
-              <div key={st.station} className="rounded-md border border-[#FFED00]/60 p-2.5">
+              <div key={st.station} className={cn("rounded-md border border-slate-900 p-2.5 text-slate-900", STATION_PASTEL[st.station] || "bg-slate-50")}>
                 <p className="mb-1 text-xs font-black uppercase tracking-wide">{st.station}</p>
                 <div className="flex flex-wrap items-center gap-1">
                   {st.photographers.length
@@ -246,22 +248,22 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
       {groups.length > 0 && (
         <div>
           <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Switch schedule</p>
-          <div className="hidden overflow-x-auto rounded-md border border-[#FFED00] sm:block">
+          <div className="hidden overflow-x-auto rounded-md border border-slate-900 sm:block">
             <table className="w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="bg-[#FFED00] text-[10px] uppercase tracking-wider text-slate-900">
-                  <th className="border border-slate-900/30 px-3 py-2">Group</th>
+                  <th className="border border-slate-900 px-3 py-2">Group</th>
                   {Array.from({ length: maxP }).map((_, i) => (
-                    <th key={i} className="border border-slate-900/30 px-3 py-2">Photo {i + 1}</th>
+                    <th key={i} className="border border-slate-900 px-3 py-2">Photo {i + 1}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {groups.map((g) => (
-                  <tr key={g.id} className="bg-black text-[#FFED00]">
-                    <td className="border border-[#FFED00]/50 bg-[#FFED00] px-3 py-2 font-bold text-slate-900">{g.name}</td>
+                  <tr key={g.id} className="bg-white text-slate-900">
+                    <td className="border border-slate-900 bg-[#FFED00] px-3 py-2 font-bold">{g.name}</td>
                     {Array.from({ length: maxP }).map((_, i) => (
-                      <td key={i} className="border border-[#FFED00]/50 px-3 py-2 font-bold">{g.photographers[i] || "—"}</td>
+                      <td key={i} className="border border-slate-900 px-3 py-2 font-bold">{g.photographers[i] || "—"}</td>
                     ))}
                   </tr>
                 ))}
@@ -271,11 +273,11 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
           {/* Mobile: stacked group cards */}
           <div className="space-y-1.5 sm:hidden">
             {groups.map((g) => (
-              <div key={g.id} className="rounded-md border border-[#FFED00]/60 bg-black p-2.5">
+              <div key={g.id} className="rounded-md border border-slate-900 bg-white p-2.5">
                 <p className="mb-1 text-xs font-black uppercase tracking-wide text-slate-900">
                   <span className="rounded bg-[#FFED00] px-1.5 py-0.5">{g.name}</span>
                 </p>
-                <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-bold text-[#FFED00]">
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs font-bold text-slate-900">
                   {g.photographers.map((p, i) => (
                     <span key={i}><span className="text-[9px] font-bold uppercase opacity-60">P{i + 1}</span> {p || "—"}</span>
                   ))}
@@ -295,13 +297,13 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                 <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   Break schedule — stations 1–3{shifts.length > 1 ? ` (Shift ${si + 1})` : ""}
                 </p>
-                <div className="hidden overflow-x-auto rounded-md border border-[#FFED00] sm:block">
+                <div className="hidden overflow-x-auto rounded-md border border-slate-900 sm:block">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
                       <tr className="bg-[#FFED00] text-[10px] uppercase tracking-wider text-slate-900">
-                        <th className="border border-slate-900/30 px-3 py-2">Station</th>
+                        <th className="border border-slate-900 px-3 py-2">Station</th>
                         {t.times.map((b, bi) => (
-                          <th key={bi} className="border border-slate-900/30 px-3 py-2 whitespace-nowrap">
+                          <th key={bi} className="border border-slate-900 px-3 py-2 whitespace-nowrap">
                             {fmtT(b.start)}–{fmtT(b.end)}
                           </th>
                         ))}
@@ -311,16 +313,13 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                       {BREAK_STATIONS.map((station) => (
                         <tr
                           key={station}
-                          className={cn(
-                            "text-[#FFED00]",
-                            si === 0 ? "bg-purple-900" : "bg-neutral-600"
-                          )}
+                          className={cn("text-slate-900", STATION_PASTEL[station] || "bg-slate-50")}
                         >
-                          <td className="border border-slate-900/30 bg-[#FFED00] px-3 py-2 font-bold text-slate-900 whitespace-nowrap">
+                          <td className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">
                             {station}
                           </td>
                           {t.times.map((_, bi) => (
-                            <td key={bi} className="border border-[#FFED00]/50 px-3 py-2 font-bold">
+                            <td key={bi} className="border border-slate-900 px-3 py-2 font-bold">
                               {(t.rows?.[station] || [])[bi] || "—"}
                             </td>
                           ))}
@@ -335,12 +334,12 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                     <div
                       key={station}
                       className={cn(
-                        "rounded-md border border-[#FFED00]/60 p-2.5 text-[#FFED00]",
-                        si === 0 ? "bg-purple-900" : "bg-neutral-600"
+                        "rounded-md border border-slate-900 p-2.5 text-slate-900",
+                        STATION_PASTEL[station] || "bg-slate-50"
                       )}
                     >
                       <p className="mb-1 text-xs font-black uppercase tracking-wide">
-                        <span className="rounded bg-[#FFED00] px-1.5 py-0.5 text-slate-900">{station}</span>
+                        <span className="rounded bg-[#FFED00] px-1.5 py-0.5">{station}</span>
                       </p>
                       <div className="space-y-0.5 text-xs font-bold">
                         {t.times.map((b, bi) => (
