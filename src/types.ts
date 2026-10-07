@@ -154,6 +154,53 @@ export interface ChecklistGroup {
   items: ChecklistItem[];
 }
 
+// ── HYROX tactic ────────────────────────────────────────────────────────────
+export interface HyroxBreakRange {
+  start: string; // "HH:MM"
+  end: string;
+}
+
+export interface HyroxStationPlan {
+  station: string; // fixed station name
+  photographers: string[];
+  breaks: HyroxBreakRange[]; // jumper-covered break windows
+  cover: string[]; // jumper(s) covering this station
+}
+
+export interface HyroxSwitchGroup {
+  id: string;
+  name: string; // group label
+  photographers: string[]; // ordered — 1st moves to 2nd's station, etc.
+}
+
+/** Per-shift break table: one column per break window, rows keyed by station 1-3 */
+export interface HyroxBreakTable {
+  times: HyroxBreakRange[]; // times[i] = time window of break column i
+  rows: Record<string, string[]>; // rows[station][i] = photographer covering break i
+}
+
+/** Legacy flat break row (pre-redesign) */
+export interface HyroxBreak {
+  id: string;
+  station: string;
+  photographer: string;
+  start: string; // "HH:MM"
+  end: string;
+}
+
+export interface HyroxTactic {
+  shifts: HyroxStationPlan[][]; // shifts[0] = shift 1 stations, [1] = shift 2
+  switchGroups: HyroxSwitchGroup[];
+  breaks: HyroxBreakTable[]; // breaks[shiftIdx] — stations 1-3, self-managed
+}
+
+/** One race day of a HYROX event — each day has its own tactic */
+export interface HyroxDayPlan {
+  date: string; // YYYY-MM-DD
+  callTime: string; // "HH:MM" — crew call time for this day
+  tactic: HyroxTactic;
+}
+
 export interface EventDTO {
   id: string;
   ownerId: string;
@@ -177,6 +224,7 @@ export interface EventDTO {
   positions: Position[];
   preSpots: PreSpot[];
   tactic: TacticRow[];
+  hyrox: HyroxDayPlan[];
   course: Course | null;
   documents: EventDoc[];
   checklist: ChecklistGroup[];

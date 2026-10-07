@@ -27,7 +27,7 @@ import type { EventStatus } from "@/types";
 import type { TabProps } from "./EventWorkspace";
 
 const EVENT_TYPES = [
-  "IRONMAN", "IRONMAN 70.3", "Obstacle Race", "Marathon", "Trail Run",
+  "IRONMAN", "IRONMAN 70.3", "Obstacle Race", "Marathon", "Trail Run", "HYROX",
 ];
 
 export default function SettingsTab({

@@ -61,6 +61,9 @@ export default function EventWorkspace({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
+  // HYROX has no course/GPX — hide the map tab entirely
+  const visibleTabs = TABS.filter((t) => !(t.id === "course" && /hyrox/i.test(event.type)));
+
   const patch = useCallback(
     async (fields: Partial<EventDTO>) => {
       setSaving(true);
@@ -97,7 +100,7 @@ export default function EventWorkspace({
       {/* Tab bar */}
       <div className="sticky top-[53px] z-20 -mx-3 mb-4 border-b border-slate-200 bg-slate-50/95 px-3 backdrop-blur md:top-[61px] md:-mx-6 md:px-6">
         <div className="flex gap-1 overflow-x-auto py-2">
-          {TABS.map((t) => {
+          {visibleTabs.map((t) => {
             const Icon = t.icon;
             return (
               <button
@@ -126,7 +129,7 @@ export default function EventWorkspace({
       {tab === "info" && <InfoTab {...props} />}
       {tab === "team" && <TeamTab {...props} />}
       {tab === "tactic" && <TacticTab {...props} />}
-      {tab === "course" && <CourseTab {...props} />}
+      {tab === "course" && !/hyrox/i.test(event.type) && <CourseTab {...props} />}
       {tab === "files" && <FilesTab {...props} files={files} setFiles={setFiles} />}
       {tab === "checklist" && <ChecklistTab {...props} />}
       {tab === "settings" && (

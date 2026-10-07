@@ -39,6 +39,11 @@ export function serializeEvent(doc: any): EventDTO {
     positions: e.positions || [],
     preSpots: e.preSpots || [],
     tactic: e.tactic || [],
+    hyrox: Array.isArray(e.hyrox)
+      ? e.hyrox
+      : e.hyrox && typeof e.hyrox === "object"
+        ? [{ date: e.date || "", tactic: e.hyrox }]
+        : [],
     course: e.course || null,
     documents: e.documents || [],
     checklist: e.checklist || [],

@@ -26,6 +26,7 @@ import { fmtDate, isImageMime, isPdfMime, cn, googleMapsUrl } from "@/lib/utils"
 import Markdown from "@/components/Markdown";
 import { FileTypeBadge, Lightbox, PdfViewer } from "@/components/FileViewers";
 import type { EventDTO, FileDTO } from "@/types";
+import { HyroxPublicView } from "@/components/workspace/HyroxTactic";
 
 const CourseMap = dynamic(() => import("@/components/CourseMap"), { ssr: false });
 
@@ -96,6 +97,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   const [imgIndex, setImgIndex] = useState<number | null>(null);
   const [tacticSort, setTacticSort] = useState<"order" | "spot" | "photographer" | "arrival">("order");
   const [tacticFilter, setTacticFilter] = useState("");
+  const [hyroxDay, setHyroxDay] = useState(0);
   const images = files.filter((f) => isImageMime(f.mime));
   const st = STATUS_META[event.status] || STATUS_META.planning;
   const legs = event.course?.legs || [];
@@ -129,7 +131,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   const nav = [
     { id: "venue", label: "Venue", icon: MapPin, show: !!event.venue.name },
     { id: "calltime", label: "Call time", icon: AlarmClock, show: callTimes.length > 0 },
-    { id: "tactic", label: "Tactic", icon: Target, show: (event.tactic || []).length > 0 },
+    { id: "tactic", label: "Tactic", icon: Target, show: (event.tactic || []).length > 0 || (event.hyrox || []).length > 0 },
     { id: "course", label: "Course", icon: RouteIcon, show: legs.length > 0 },
     { id: "files", label: "Files", icon: FolderOpen, show: files.length > 0 },
     { id: "hotel", label: "Hotel", icon: BedDouble, show: !!event.hotel.name },
@@ -241,8 +243,34 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         )}
         </div>
 
-        {/* Tactic — spot assignment table */}
-        {(event.tactic || []).length > 0 && (
+        {/* Tactic — HYROX station plan or spot assignment table */}
+        {(event.hyrox || []).length > 0 ? (
+          <Section id="tactic" icon={<Target size={16} />} title="Tactic">
+            {event.hyrox.length > 1 && (
+              <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                {event.hyrox.map((d, i) => (
+                  <button
+                    key={d.date}
+                    onClick={() => setHyroxDay(i)}
+                    className={cn(
+                      "rounded-md px-2.5 py-1 text-xs font-bold",
+                      i === hyroxDay
+                        ? "bg-slate-900 text-white"
+                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                    )}
+                  >
+                    {fmtDate(d.date)}
+                  </button>
+                ))}
+              </div>
+            )}
+            <HyroxPublicView
+              hyrox={(event.hyrox[hyroxDay] || event.hyrox[0]).tactic}
+              team={event.photographers.map((p) => p.acronym || p.name)}
+              callTime={(event.hyrox[hyroxDay] || event.hyrox[0]).callTime}
+            />
+          </Section>
+        ) : (event.tactic || []).length > 0 && (
           <Section id="tactic" icon={<Target size={16} />} title="Tactic">
             <div className="mb-2 flex items-center justify-end gap-3">
               <select

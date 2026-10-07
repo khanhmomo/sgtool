@@ -15,6 +15,7 @@ import { Button, Card, CardHeader, Empty, Input, Select, Textarea, Notice } from
 import { uid, googleMapsUrl } from "@/lib/utils";
 import type { TacticRow } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import HyroxTactic from "./HyroxTactic";
 
 const LENS_OPTIONS = ["24-70 / 16-35", "70-200"];
 
@@ -85,7 +86,7 @@ const newRow = (spot = ""): TacticRow => ({
   color: "",
 });
 
-export default function TacticTab({ event, patch, saving }: TabProps) {
+export default function TacticTab({ event, patch, setEvent, saving }: TabProps) {
   const [rows, setRows] = useState<TacticRow[]>(event.tactic || []);
   const [notes, setNotes] = useState(event.notes || "");
   const [dirty, setDirty] = useState(false);
@@ -128,6 +129,11 @@ export default function TacticTab({ event, patch, saving }: TabProps) {
 
   const unassigned = rows.filter((r) => !r.photographer).length;
   const isIronman = /ironman|triathlon/i.test(event.type);
+
+  // HYROX uses a completely different tactic layout (stations / shifts / switches / breaks)
+  if (/hyrox/i.test(event.type)) {
+    return <HyroxTactic event={event} patch={patch} setEvent={setEvent} saving={saving} />;
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
