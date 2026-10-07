@@ -94,12 +94,37 @@ function MapLink({ url, label = "Open in Google Maps" }: { url?: string; label?:
 export default function PublicEvent({ event, files }: { event: EventDTO; files: FileDTO[] }) {
   const [pdf, setPdf] = useState<FileDTO | null>(null);
   const [imgIndex, setImgIndex] = useState<number | null>(null);
+  const [tacticSort, setTacticSort] = useState<"order" | "spot" | "photographer" | "arrival">("order");
+  const [tacticFilter, setTacticFilter] = useState("");
   const images = files.filter((f) => isImageMime(f.mime));
   const st = STATUS_META[event.status] || STATUS_META.planning;
   const legs = event.course?.legs || [];
 
   // morning call-time entries: schedule items titled e.g. "Call time", "Meet at…"
   const callTimes = event.schedule.filter((s) => /call|meet|brief/i.test(s.title));
+
+  /** "7:30 AM" → minutes since midnight for sorting; unparseable → +∞ */
+  const timeToMin = (t: string) => {
+    const m = t.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (!m) return 24 * 60;
+    let h = +m[1];
+    if (/pm/i.test(m[3]) && h < 12) h += 12;
+    if (/am/i.test(m[3]) && h === 12) h = 0;
+    return h * 60 + +m[2];
+  };
+
+  const sortedTactic = [...(event.tactic || [])]
+    .filter((r) => !tacticFilter || r.photographer === tacticFilter)
+    .sort((a, b) => {
+      if (tacticSort === "spot") return (a.spot || "").localeCompare(b.spot || "");
+      if (tacticSort === "photographer") {
+        const an = event.photographers.find((p) => p.acronym === a.photographer)?.name || a.photographer || "zzz";
+        const bn = event.photographers.find((p) => p.acronym === b.photographer)?.name || b.photographer || "zzz";
+        return an.localeCompare(bn);
+      }
+      if (tacticSort === "arrival") return timeToMin(a.arrival || "") - timeToMin(b.arrival || "");
+      return 0;
+    });
 
   const nav = [
     { id: "venue", label: "Venue", icon: MapPin, show: !!event.venue.name },
@@ -219,6 +244,31 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         {/* Tactic — spot assignment table */}
         {(event.tactic || []).length > 0 && (
           <Section id="tactic" icon={<Target size={16} />} title="Tactic">
+            <div className="mb-2 flex items-center justify-end gap-3">
+              <select
+                value={tacticFilter}
+                onChange={(e) => setTacticFilter(e.target.value)}
+                className="h-7 rounded-md border border-slate-200 bg-white px-1.5 text-[11px] font-medium text-slate-700 outline-none focus:border-blue-500"
+              >
+                <option value="">All photographers</option>
+                {event.photographers.map((p) => (
+                  <option key={p.id} value={p.acronym}>
+                    {p.name || p.acronym}
+                  </option>
+                ))}
+              </select>
+              <span className="text-[11px] font-medium text-slate-500">Sort by</span>
+              <select
+                value={tacticSort}
+                onChange={(e) => setTacticSort(e.target.value as typeof tacticSort)}
+                className="h-7 rounded-md border border-slate-200 bg-white px-1.5 text-[11px] font-medium text-slate-700 outline-none focus:border-blue-500"
+              >
+                <option value="order">Race order</option>
+                <option value="spot">Spot name</option>
+                <option value="photographer">Photographer</option>
+                <option value="arrival">Arrival time</option>
+              </select>
+            </div>
             <div className="overflow-x-auto rounded-md border border-slate-200">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -232,7 +282,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                   </tr>
                 </thead>
                 <tbody>
-                  {event.tactic.map((r) => {
+                  {sortedTactic.map((r) => {
                     const mate = event.photographers.find((p) => p.acronym === r.photographer);
                     // Fall back to the matching course spot when the row has no stored link
                     const pos = (event.positions || []).find(
