@@ -1,36 +1,99 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Sportograf TL Tool
 
-## Getting Started
+Internal operational web app for **Sportograf Team Leaders** — one place for events, photographers, courses, tactics, files and position planning. Replaces scattered WhatsApp threads, spreadsheets and ad-hoc documents.
 
-First, run the development server:
+**One event. One source of truth.**
+
+## What's inside
+
+### For the Team Leader
+- **Dashboard** — upcoming vs. past events at a glance
+- **Events** — create, edit, filter, and archive events with lifecycle statuses (Planning → Ready → Live → Completed → Archived)
+- **Event workspace** — nine focused tabs:
+  - **Overview** — key facts, readiness signals, share-link management
+  - **Info** — venue (entrance/parking/access/accreditation/meeting point), hotel (booking refs, rooms), transportation legs, contacts
+  - **Schedule** — day-grouped timeline
+  - **Team** — photographer roster with acronym, contact, vehicle
+  - **Tactics & Docs** — Markdown documents (tactics, guides, notes) + add-from-Bookshelf
+  - **Course & Positions** — GPX upload, interactive Leaflet map, position editor with automatic course-distance analysis (loop-aware: one spot = multiple race distances), paste Google Maps links to extract coordinates, generate/copy/share the position list
+  - **Files** — uploads with inline PDF viewer and image lightbox
+  - **Checklist** — grouped checklists with progress
+  - **Settings** — general settings, share link rotation, danger zone
+- **Bookshelf** — reusable templates (tactics/guides/checklists) with search, duplicate, archive — snapshot them into any event
+- **Photographers** — aggregated roster across all events
+- **Files** — every upload across events & bookshelf
+- **Search** — global search across events, positions, templates, files
+
+### For the Photographer
+- **Shareable event link** (`/e/[slug]`) — no login needed, mobile-first, collapsible sections, quick-nav chips, click-to-call contacts, "Open in Maps" navigation buttons, embedded PDFs and images
+
+## Tech stack
+
+- **Next.js** (App Router, TypeScript) + **Tailwind CSS v4**
+- **MongoDB** via Mongoose
+- **Auth.js (NextAuth)** credentials provider, JWT sessions, `proxy.ts` route protection
+- **Vercel Blob** for file storage (falls back to `public/uploads` in local dev)
+- **Leaflet** for course maps (dynamically imported, client-only)
+- **fast-xml-parser** for GPX, **zod** for API validation, **bcryptjs** for passwords
+
+## Getting started
 
 ```bash
+# 1. Install
+npm install
+
+# 2. Configure environment
+cp .env.example .env.local
+#    set MONGODB_URI and AUTH_SECRET  (npx auth secret generates one)
+
+# 3. Seed demo data (creates users, event, course, files, templates)
+npx tsx scripts/seed.ts
+
+# 4. Run
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Demo logins** (after seeding):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Email | Acronym | Password |
+|---|---|---|
+| `akt@sportograf.com` | AKT | `demo1234` |
+| `gip@sportograf.com` | GIP | `demo1234` |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Photographer demo link: `http://localhost:3000/e/sh4ng2026`
 
-## Learn More
+## Deployment (Vercel)
 
-To learn more about Next.js, take a look at the following resources:
+1. Push to GitHub, import into Vercel.
+2. Add env vars: `MONGODB_URI`, `AUTH_SECRET`, `AUTH_URL`, `BLOB_READ_WRITE_TOKEN` (create a Blob store in the Vercel dashboard).
+3. Deploy — no build-time config needed.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Without `BLOB_READ_WRITE_TOKEN` uploads still work locally via `public/uploads` (dev fallback only — serverless filesystems are ephemeral).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project structure
 
-## Deploy on Vercel
+```
+src/
+  app/
+    (app)/            # authenticated shell: dashboard, events, bookshelf, …
+    (auth)/           # login / register
+    e/[slug]/         # public photographer page (no auth)
+    api/              # events, files, templates, search, parse-location, me
+  components/
+    workspace/        # event tab modules
+    ui.tsx            # shared primitives
+  lib/
+    models.ts         # Mongoose schemas (User, Event, Template, FileDoc)
+    geo.ts            # position→course analysis (loop-aware distances)
+    gpx.ts            # GPX parsing
+    coords.ts         # Google-Maps-URL coordinate extraction
+    storage.ts        # Vercel Blob / local fallback
+    design.ts         # centralized design tokens (sports, statuses, categories)
+scripts/seed.ts       # demo data
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Notes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Design tokens live in `src/lib/design.ts` and `globals.css` — no hardcoded brand colors elsewhere.
+- Share links are random slugs; rotating or revoking is one click in the event **Overview/Settings** tab.
+- The workspace PATCH endpoint is whitelist-based — only mutable fields are updatable.
