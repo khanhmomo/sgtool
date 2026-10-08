@@ -75,6 +75,25 @@ function ironmanSkeleton(): TacticRow[] {
   }));
 }
 
+/** Fitness Indoor skeleton: Station 1–10, Finish, Hero Wall. */
+function fitnessIndoorSkeleton(): TacticRow[] {
+  const spots = [
+    ...Array.from({ length: 10 }, (_, i) => `Station ${i + 1}`),
+    "Finish",
+    "Hero Wall",
+  ];
+  return spots.map((spot) => ({
+    id: uid(),
+    spot,
+    photographer: "",
+    lens: "",
+    arrival: "",
+    mapLink: "",
+    note: "",
+    color: "",
+  }));
+}
+
 const newRow = (spot = ""): TacticRow => ({
   id: uid(),
   spot,
@@ -123,12 +142,13 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
 
   function generate() {
     const existing = rows.length ? [...rows] : [];
-    setRows([...existing, ...ironmanSkeleton()]);
+    setRows([...existing, ...(isFitnessIndoor ? fitnessIndoorSkeleton() : ironmanSkeleton())]);
     setDirty(true);
   }
 
   const unassigned = rows.filter((r) => !r.photographer).length;
   const isIronman = /ironman|triathlon/i.test(event.type);
+  const isFitnessIndoor = /fitness\s*indoor/i.test(event.type);
 
   // HYROX uses a completely different tactic layout (stations / shifts / switches / breaks)
   if (/hyrox/i.test(event.type)) {
@@ -146,6 +166,11 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
               {isIronman && (
                 <Button size="sm" variant="outline" onClick={generate}>
                   <Wand2 size={14} /> IRONMAN skeleton
+                </Button>
+              )}
+              {isFitnessIndoor && (
+                <Button size="sm" variant="outline" onClick={generate}>
+                  <Wand2 size={14} /> Station template
                 </Button>
               )}
               <Button size="sm" variant="outline" onClick={() => addRow()}>
@@ -182,12 +207,14 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
               hint={
                 isIronman
                   ? "Generate the IRONMAN spot skeleton (Swim In → Finish Line) or add spots manually, then assign photographers."
-                  : "Add spots, then assign photographers."
+                  : isFitnessIndoor
+                    ? "Generate the Station template (Station 1–10, Finish, Hero Wall) or add spots manually, then assign photographers."
+                    : "Add spots, then assign photographers."
               }
               action={
-                isIronman ? (
+                isIronman || isFitnessIndoor ? (
                   <Button size="sm" variant="accent" onClick={generate}>
-                    <Wand2 size={14} /> Generate IRONMAN skeleton
+                    <Wand2 size={14} /> {isFitnessIndoor ? "Generate Station template" : "Generate IRONMAN skeleton"}
                   </Button>
                 ) : (
                   <Button size="sm" variant="accent" onClick={() => addRow()}>
@@ -282,7 +309,14 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                           </div>
                         </td>
                         <td className="px-3 py-2">
-                          {(() => {
+                          {isFitnessIndoor ? (
+                            <Input
+                              value={r.spot}
+                              onChange={(e) => update(r.id, "spot", e.target.value)}
+                              placeholder="e.g. Station 3"
+                              className="h-8 w-44 text-xs font-semibold"
+                            />
+                          ) : (() => {
                             const withCoords = event.positions.filter(
                               (p) => p.lat !== null && p.lng !== null
                             );

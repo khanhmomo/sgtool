@@ -61,8 +61,9 @@ export default function EventWorkspace({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
-  // HYROX has no course/GPX — hide the map tab entirely
-  const visibleTabs = TABS.filter((t) => !(t.id === "course" && /hyrox/i.test(event.type)));
+  // HYROX + Fitness Indoor have no course/GPX — hide the map tab entirely
+  const noCourse = /hyrox|fitness\s*indoor/i.test(event.type);
+  const visibleTabs = TABS.filter((t) => !(t.id === "course" && noCourse));
 
   const patch = useCallback(
     async (fields: Partial<EventDTO>) => {
@@ -129,7 +130,7 @@ export default function EventWorkspace({
       {tab === "info" && <InfoTab {...props} />}
       {tab === "team" && <TeamTab {...props} />}
       {tab === "tactic" && <TacticTab {...props} />}
-      {tab === "course" && !/hyrox/i.test(event.type) && <CourseTab {...props} />}
+      {tab === "course" && !noCourse && <CourseTab {...props} />}
       {tab === "files" && <FilesTab {...props} files={files} setFiles={setFiles} />}
       {tab === "checklist" && <ChecklistTab {...props} />}
       {tab === "settings" && (

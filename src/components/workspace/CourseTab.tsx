@@ -30,7 +30,7 @@ import {
   Select,
 } from "@/components/ui";
 import { SPORT_META } from "@/lib/design";
-import { cn, fmtDistances, googleMapsUrl } from "@/lib/utils";
+import { cn, fmtDistances, googleMapsUrl, uid } from "@/lib/utils";
 import { analyzePosition } from "@/lib/geo";
 import { buildLeg } from "@/lib/gpx";
 import { extractCoords, parseLatLngText } from "@/lib/coords";
@@ -76,6 +76,11 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
   const kmzInput = useRef<HTMLInputElement>(null);
 
   const legs = course?.legs || [];
+  // Bike Race = obstacle-style course but no KMZ import / pre-spots
+  const noKmz = /bike\s*race/i.test(event.type);
+  const showPreSpotUI = !noKmz && preSpots.length > 0;
+  // Bike Race + Obstacle Race: new spots auto-add to the tactic list
+  const autoTacticSpot = /bike\s*race|obstacle/i.test(event.type);
 
   // ── persistence ──────────────────────────────────────────────────────────
   async function savePositions(next: Position[]) {
@@ -164,7 +169,24 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
     const nextPre = preSpots.map((s) => (s.id === ps.id ? { ...s, added: true } : s));
     setPositions(nextPositions);
     setPreSpots(nextPre);
-    await patch({ positions: nextPositions, preSpots: nextPre });
+    if (autoTacticSpot) {
+      const tactic = [
+        ...(event.tactic || []),
+        {
+          id: uid(),
+          spot: clean.photographer || clean.id,
+          photographer: "",
+          lens: "",
+          arrival: "",
+          mapLink: clean.mapLink || "",
+          note: "",
+          color: "",
+        },
+      ];
+      await patch({ positions: nextPositions, preSpots: nextPre, tactic });
+    } else {
+      await patch({ positions: nextPositions, preSpots: nextPre });
+    }
   }
 
   async function removePreSpot(id: string) {
@@ -310,7 +332,26 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
     const next = editing.__isNew
       ? [...positions, clean]
       : positions.map((p) => (p.id === editing.id ? clean : p));
-    await savePositions(next);
+    // Bike Race / Obstacle Race: new spots go straight into the tactic list
+    if (editing.__isNew && autoTacticSpot) {
+      const tactic = [
+        ...(event.tactic || []),
+        {
+          id: uid(),
+          spot: clean.photographer || clean.id,
+          photographer: "",
+          lens: "",
+          arrival: "",
+          mapLink: clean.mapLink || (clean.lat != null && clean.lng != null ? googleMapsUrl(clean.lat, clean.lng) : ""),
+          note: "",
+          color: "",
+        },
+      ];
+      setPositions(next);
+      await patch({ positions: next, tactic });
+    } else {
+      await savePositions(next);
+    }
     setEditing(null);
   }
 
@@ -319,6 +360,14 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
     const nextPositions = positions.filter((p) => p.id !== id);
     setPositions(nextPositions);
     if (selectedId === id) setSelectedId(null);
+    const fields: Record<string, unknown> = { positions: nextPositions };
+    // Bike/Obstacle: removing a spot also drops it from the tactic list
+    if (autoTacticSpot && removed) {
+      const spotName = removed.photographer || removed.id;
+      fields.tactic = (event.tactic || []).filter(
+        (r) => r.spot !== spotName && r.spot !== removed.id
+      );
+    }
     // If the spot came from a pre-spot, mark it available again
     const ps = removed
       ? preSpots.find(
@@ -328,10 +377,9 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
     if (ps) {
       const nextPre = preSpots.map((s) => (s.id === ps.id ? { ...s, added: false } : s));
       setPreSpots(nextPre);
-      patch({ positions: nextPositions, preSpots: nextPre });
-    } else {
-      patch({ positions: nextPositions });
+      fields.preSpots = nextPre;
     }
+    patch(fields);
   }
 
   // ── copy helpers ─────────────────────────────────────────────────────────
@@ -410,7 +458,7 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
                 />
                 Positions
               </label>
-              {preSpots.length > 0 && (
+              {showPreSpotUI && (
                 <>
                   <label className="flex items-center gap-1.5 text-xs text-slate-500">
                     <input
@@ -448,22 +496,26 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
               >
                 <Upload size={14} /> {course ? "Add GPX" : "Upload GPX"}
               </Button>
-              <input
-                ref={kmzInput}
-                type="file"
-                accept=".kmz"
-                className="hidden"
-                onChange={(e) => e.target.files?.[0] && importKmz(e.target.files[0])}
-              />
-              <Button
-                size="sm"
-                variant="outline"
-                loading={importingKmz}
-                onClick={() => kmzInput.current?.click()}
-                title="Import pinned spots from a Google Earth .kmz file"
-              >
-                <MapPin size={14} /> Import KMZ
-              </Button>
+              {!noKmz && (
+                <>
+                  <input
+                    ref={kmzInput}
+                    type="file"
+                    accept=".kmz"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && importKmz(e.target.files[0])}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    loading={importingKmz}
+                    onClick={() => kmzInput.current?.click()}
+                    title="Import pinned spots from a Google Earth .kmz file"
+                  >
+                    <MapPin size={14} /> Import KMZ
+                  </Button>
+                </>
+              )}
             </div>
           }
         />
@@ -531,7 +583,7 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
               <CourseMap
                 legs={legs}
                 positions={positions}
-                preSpots={preSpots.filter(
+                preSpots={noKmz ? [] : preSpots.filter(
                   (s) => (s.added && showAddedSpots) || (!s.added && showPreSpots)
                 )}
                 showCourse={showCourse}
@@ -674,7 +726,7 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
       </Card>
 
       {/* ── Pre-spot list (imported from KMZ) ── */}
-      {preSpots.length > 0 && (
+      {showPreSpotUI && (
         <Card>
           <CardHeader
             title={`Pre-spot list (${preSpots.length})`}

@@ -8,6 +8,7 @@ import type { TemplateDTO } from "@/types";
 
 const EVENT_TYPES = [
   "IRONMAN", "IRONMAN 70.3", "Obstacle Race", "Marathon", "Trail Run", "HYROX",
+  "Fitness Indoor", "Bike Race",
 ];
 
 export default function NewEventForm({ templates }: { templates: TemplateDTO[] }) {
