@@ -21,15 +21,6 @@ export const authConfig = {
       }
       if (isPublic) return true;
       if (!isLoggedIn) return false; // → NextAuth redirects to signIn page
-
-      // First-login: force password change before anything else.
-      // Session callback maps token.mustChangePassword onto auth.user.
-      const mustChange = !!(
-        auth.user as { mustChangePassword?: boolean } | undefined
-      )?.mustChangePassword;
-      if (mustChange && !pathname.startsWith("/change-password") && !pathname.startsWith("/api/")) {
-        return Response.redirect(new URL("/change-password", request.nextUrl));
-      }
       return true;
     },
     jwt({ token, user, trigger, session }) {
