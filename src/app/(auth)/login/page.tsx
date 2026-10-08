@@ -11,6 +11,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Shown after a forced password change redirects back here
+  const [changed] = useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("changed") === "1"
+  );
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,6 +34,9 @@ export default function LoginPage() {
     <Card className="w-full max-w-sm p-6">
       <h1 className="mb-1 text-xl font-bold text-slate-900">Sign in</h1>
       <p className="mb-5 text-sm text-slate-500">Team Leader access</p>
+      {changed && (
+        <Notice kind="ok" className="mb-4">Password changed — sign in with your new password.</Notice>
+      )}
       <form onSubmit={onSubmit} className="space-y-4">
         <Field label="Email">
           <Input
