@@ -207,12 +207,15 @@ export default function OverviewTab({
                 </p>
               </div>
             )}
-            {event.hotel.name && (
+            {event.hotels.filter((h) => h.name).length > 0 && (
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  <BedDouble size={11} className="mr-1 inline" /> Hotel
+                  <BedDouble size={11} className="mr-1 inline" />{" "}
+                  {event.hotels.filter((h) => h.name).length > 1 ? "Hotels" : "Hotel"}
                 </p>
-                <p className="text-slate-800">{event.hotel.name}</p>
+                <p className="text-slate-800">
+                  {event.hotels.filter((h) => h.name).map((h) => h.name).join(", ")}
+                </p>
               </div>
             )}
           </div>

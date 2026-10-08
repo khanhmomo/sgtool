@@ -7,7 +7,7 @@ import { serializeEvent } from "@/lib/serialize";
 // Whitelisted top-level fields that PATCH may update.
 const PATCHABLE = new Set([
   "name", "type", "date", "endDate", "location", "country", "organizer", "website",
-  "status", "venue", "hotel", "transport", "schedule", "contacts", "photographers",
+  "status", "venue", "hotels", "transport", "schedule", "contacts", "photographers",
   "positions", "preSpots", "tactic", "course", "documents", "checklist", "notes",
   "hyrox",
 ]);

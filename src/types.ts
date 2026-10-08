@@ -216,7 +216,7 @@ export interface EventDTO {
   status: EventStatus;
   shareSlug: string | null;
   venue: VenueInfo;
-  hotel: HotelInfo;
+  hotels: HotelInfo[];
   transport: Transport[];
   schedule: ScheduleItem[];
   contacts: Contact[];

@@ -31,7 +31,13 @@ export function serializeEvent(doc: any): EventDTO {
     status: e.status || "planning",
     shareSlug: e.shareSlug || null,
     venue: { ...EMPTY_VENUE, ...(e.venue || {}) },
-    hotel: { ...EMPTY_HOTEL, ...(e.hotel || {}) },
+    hotels: (
+      Array.isArray(e.hotels) && e.hotels.length > 0
+        ? e.hotels
+        : e.hotel && typeof e.hotel === "object" && (e.hotel as { name?: string }).name
+          ? [e.hotel]
+          : []
+    ).map((h: Record<string, unknown>) => ({ ...EMPTY_HOTEL, ...(h || {}) })),
     transport: e.transport || [],
     schedule: e.schedule || [],
     contacts: e.contacts || [],

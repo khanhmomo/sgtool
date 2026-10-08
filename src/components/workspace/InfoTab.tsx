@@ -63,16 +63,21 @@ function RoomBoard({
   rooms,
   photographers,
   onChange,
+  assignedElsewhere,
 }: {
   rooms: RoomAssignment[];
   photographers: Photographer[];
   onChange: (rooms: RoomAssignment[]) => void;
+  /** Acronyms assigned to rooms in OTHER hotels — excluded from this pool too */
+  assignedElsewhere?: Set<string>;
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null); // room id or "pool"
 
   const assigned = new Set(rooms.flatMap((r) => r.members));
-  const pool = photographers.filter((p) => p.acronym && !assigned.has(p.acronym));
+  const pool = photographers.filter(
+    (p) => p.acronym && !assigned.has(p.acronym) && !(assignedElsewhere?.has(p.acronym))
+  );
 
   function moveTo(acronym: string, roomId: string | null) {
     if (!acronym) return;
@@ -173,7 +178,7 @@ function RoomBoard({
 
 export default function InfoTab({ event, patch, saving }: TabProps) {
   const [venue, setVenue] = useState<VenueInfo>(event.venue);
-  const [hotel, setHotel] = useState<HotelInfo>(event.hotel);
+  const [hotels, setHotels] = useState<HotelInfo[]>(event.hotels);
   const [dirty, setDirty] = useState<Record<string, boolean>>({});
   const [savedMsg, setSavedMsg] = useState<Record<string, boolean>>({});
 
@@ -192,10 +197,44 @@ export default function InfoTab({ event, patch, saving }: TabProps) {
     setVenue((x) => ({ ...x, [k]: e.target.value }));
     mark("venue");
   };
-  const h = (k: keyof HotelInfo) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setHotel((x) => ({ ...x, [k]: e.target.value }));
-    mark("hotel");
+  const h = (i: number, k: keyof HotelInfo) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setHotels((x) => x.map((it, j) => (j === i ? { ...it, [k]: e.target.value } : it)));
+    mark("hotels");
   };
+  const setHotelRooms = (i: number) => (roomAssign: RoomAssignment[]) => {
+    setHotels((x) => {
+      // Members newly added to this hotel's rooms get removed from other hotels' rooms
+      const before = new Set(x[i].roomAssign.flatMap((r) => r.members));
+      const added = roomAssign.flatMap((r) => r.members).filter((m) => !before.has(m));
+      return x.map((it, j) => {
+        if (j === i) return { ...it, roomAssign };
+        if (added.length === 0) return it;
+        return {
+          ...it,
+          roomAssign: it.roomAssign.map((r) => ({
+            ...r,
+            members: r.members.filter((m) => !added.includes(m)),
+          })),
+        };
+      });
+    });
+    mark("hotels");
+  };
+  // Acronyms assigned in any hotel OTHER than index i — shared pool exclusion
+  const assignedInOtherHotels = (i: number) =>
+    new Set(hotels.flatMap((h, j) => (j === i ? [] : h.roomAssign.flatMap((r) => r.members))));
+  const EMPTY_HOTEL: HotelInfo = {
+    name: "", address: "", mapLink: "", checkIn: "", checkOut: "",
+    bookingRef: "", rooms: "", roomAssign: [], breakfast: "", parking: "", notes: "",
+  };
+  function addHotel() {
+    setHotels((x) => [...x, { ...EMPTY_HOTEL, roomAssign: [] }]);
+    mark("hotels");
+  }
+  function removeHotel(i: number) {
+    setHotels((x) => x.filter((_, j) => j !== i));
+    mark("hotels");
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
@@ -226,38 +265,63 @@ export default function InfoTab({ event, patch, saving }: TabProps) {
         </div>
       </Card>
 
-      {/* ── Hotel ── */}
+      {/* ── Hotels ── */}
       <Card>
-        <CardHeader title="Hotel / Accommodation" icon={<BedDouble size={15} className="text-blue-600" />} />
-        <div className="grid gap-4 p-4 sm:grid-cols-2">
-          <Field label="Hotel name"><Input value={hotel.name} onChange={h("name")} /></Field>
-          <Field label="Google Maps link">
-            <Input value={hotel.mapLink} onChange={h("mapLink")} placeholder="https://maps.google.com/…" />
-          </Field>
-          <Field label="Address" className="sm:col-span-2">
-            <Input value={hotel.address} onChange={h("address")} />
-          </Field>
-          <Field label="Check-in"><Input value={hotel.checkIn} onChange={h("checkIn")} placeholder="Oct 17, 14:00" /></Field>
-          <Field label="Check-out"><Input value={hotel.checkOut} onChange={h("checkOut")} placeholder="Oct 19, 11:00" /></Field>
-          <Field label="Booking reference"><Input value={hotel.bookingRef} onChange={h("bookingRef")} /></Field>
-          <div className="sm:col-span-2">
-            <RoomBoard
-              rooms={hotel.roomAssign || []}
-              photographers={event.photographers}
-              onChange={(roomAssign) => {
-                setHotel((x) => ({ ...x, roomAssign }));
-                mark("hotel");
-              }}
-            />
+        <CardHeader
+          title={hotels.length > 1 ? `Hotels / Accommodation (${hotels.length})` : "Hotel / Accommodation"}
+          icon={<BedDouble size={15} className="text-blue-600" />}
+          action={
+            <Button size="sm" variant="outline" onClick={addHotel}>
+              <Plus size={13} /> Hotel
+            </Button>
+          }
+        />
+        {hotels.length === 0 && (
+          <p className="px-4 pb-4 text-sm text-slate-400">No hotel yet — click <b>+ Hotel</b> to add one.</p>
+        )}
+        {hotels.map((hotel, i) => (
+          <div key={i} className="border-t border-slate-100 first:border-t-0">
+            <div className="flex items-center justify-between px-4 pt-3">
+              <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                {hotel.name || `Hotel ${i + 1}`}
+              </span>
+              <button
+                title="Remove hotel"
+                onClick={() => removeHotel(i)}
+                className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+              >
+                <Trash2 size={13} />
+              </button>
+            </div>
+            <div className="grid gap-4 p-4 sm:grid-cols-2">
+              <Field label="Hotel name"><Input value={hotel.name} onChange={h(i, "name")} /></Field>
+              <Field label="Google Maps link">
+                <Input value={hotel.mapLink} onChange={h(i, "mapLink")} placeholder="https://maps.google.com/…" />
+              </Field>
+              <Field label="Address" className="sm:col-span-2">
+                <Input value={hotel.address} onChange={h(i, "address")} />
+              </Field>
+              <Field label="Check-in"><Input value={hotel.checkIn} onChange={h(i, "checkIn")} placeholder="Oct 17, 14:00" /></Field>
+              <Field label="Check-out"><Input value={hotel.checkOut} onChange={h(i, "checkOut")} placeholder="Oct 19, 11:00" /></Field>
+              <Field label="Booking reference"><Input value={hotel.bookingRef} onChange={h(i, "bookingRef")} /></Field>
+              <div className="sm:col-span-2">
+                <RoomBoard
+                  rooms={hotel.roomAssign || []}
+                  photographers={event.photographers}
+                  onChange={setHotelRooms(i)}
+                  assignedElsewhere={assignedInOtherHotels(i)}
+                />
+              </div>
+              <Field label="Breakfast"><Input value={hotel.breakfast} onChange={h(i, "breakfast")} placeholder="06:00–10:00, Lobby level" /></Field>
+              <Field label="Parking"><Input value={hotel.parking} onChange={h(i, "parking")} /></Field>
+              <Field label="Notes" className="sm:col-span-2">
+                <Textarea value={hotel.notes} onChange={h(i, "notes")} rows={2} />
+              </Field>
+            </div>
           </div>
-          <Field label="Breakfast"><Input value={hotel.breakfast} onChange={h("breakfast")} placeholder="06:00–10:00, Lobby level" /></Field>
-          <Field label="Parking"><Input value={hotel.parking} onChange={h("parking")} /></Field>
-          <Field label="Notes" className="sm:col-span-2">
-            <Textarea value={hotel.notes} onChange={h("notes")} rows={2} />
-          </Field>
-        </div>
+        ))}
         <div className="border-t border-slate-100 px-4 pb-3">
-          <SaveBar dirty={!!dirty.hotel} saving={saving} saved={!!savedMsg.hotel} onSave={() => save("hotel", { hotel })} />
+          <SaveBar dirty={!!dirty.hotels} saving={saving} saved={!!savedMsg.hotels} onSave={() => save("hotels", { hotels })} />
         </div>
       </Card>
 

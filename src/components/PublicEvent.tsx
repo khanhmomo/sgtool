@@ -134,7 +134,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
     { id: "tactic", label: "Tactic", icon: Target, show: (event.tactic || []).length > 0 || (event.hyrox || []).length > 0 },
     { id: "course", label: "Course", icon: RouteIcon, show: legs.length > 0 },
     { id: "files", label: "Files", icon: FolderOpen, show: files.length > 0 },
-    { id: "hotel", label: "Hotel", icon: BedDouble, show: !!event.hotel.name },
+    { id: "hotel", label: "Hotel", icon: BedDouble, show: event.hotels.some((h) => h.name) },
     { id: "team", label: "Team", icon: Camera, show: event.photographers.length > 0 },
   ].filter((n) => n.show);
 
@@ -441,57 +441,62 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
 
         {/* Hotel + Team — side by side on desktop */}
         <div className="grid gap-3 lg:grid-cols-2 lg:gap-4">
-        {/* Hotel */}
-        {event.hotel.name && (
-          <Section id="hotel" icon={<BedDouble size={16} />} title="Hotel">
-            <div className="space-y-2.5">
-              <p className="text-base font-bold text-slate-900">{event.hotel.name}</p>
-              <KV label="Address">{event.hotel.address}</KV>
-              <MapLink url={event.hotel.mapLink} label="Open hotel in Maps" />
-              <div className="grid grid-cols-2 gap-2.5">
-                <KV label="Check-in">{event.hotel.checkIn}</KV>
-                <KV label="Check-out">{event.hotel.checkOut}</KV>
-                <KV label="Booking ref">{event.hotel.bookingRef}</KV>
-                <KV label="Breakfast">{event.hotel.breakfast}</KV>
-                <KV label="Parking">{event.hotel.parking}</KV>
-              </div>
-              {(event.hotel.roomAssign || []).length > 0 ? (
-                <div className="overflow-x-auto rounded-md border border-slate-200">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
-                        <th className="px-3 py-1.5 w-24">Room</th>
-                        <th className="px-3 py-1.5">Name</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {event.hotel.roomAssign.map((r) => (
-                        <tr key={r.id} className="border-b border-slate-100 last:border-0">
-                          <td className="px-3 py-1.5 font-bold text-slate-900">{r.room}</td>
-                          <td className="px-3 py-1.5">
-                            <div className="flex flex-wrap items-center gap-1">
-                              {r.members.map((m) => {
-                                const p = event.photographers.find((x) => x.acronym === m);
-                                return (
-                                  <span key={m} className="text-slate-700">
-                                    <span className="inline-flex h-[18px] min-w-8 items-center justify-center rounded bg-slate-900 px-1 text-[10px] font-bold text-white">
-                                      {m}
-                                    </span>
-                                    {p?.name ? ` ${p.name}` : ""}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+        {/* Hotels */}
+        {event.hotels.some((ht) => ht.name) && (
+          <Section id="hotel" icon={<BedDouble size={16} />} title={event.hotels.length > 1 ? "Hotels" : "Hotel"}>
+            <div className="space-y-5">
+              {event.hotels.filter((ht) => ht.name).map((hotel, i) => (
+                <div key={i} className="space-y-2.5">
+                  {event.hotels.length > 1 && i > 0 && <hr className="border-slate-200" />}
+                  <p className="text-base font-bold text-slate-900">{hotel.name}</p>
+                  <KV label="Address">{hotel.address}</KV>
+                  <MapLink url={hotel.mapLink} label="Open hotel in Maps" />
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <KV label="Check-in">{hotel.checkIn}</KV>
+                    <KV label="Check-out">{hotel.checkOut}</KV>
+                    <KV label="Booking ref">{hotel.bookingRef}</KV>
+                    <KV label="Breakfast">{hotel.breakfast}</KV>
+                    <KV label="Parking">{hotel.parking}</KV>
+                  </div>
+                  {(hotel.roomAssign || []).length > 0 ? (
+                    <div className="overflow-x-auto rounded-md border border-slate-200">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+                            <th className="px-3 py-1.5 w-24">Room</th>
+                            <th className="px-3 py-1.5">Name</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {hotel.roomAssign.map((r) => (
+                            <tr key={r.id} className="border-b border-slate-100 last:border-0">
+                              <td className="px-3 py-1.5 font-bold text-slate-900">{r.room}</td>
+                              <td className="px-3 py-1.5">
+                                <div className="flex flex-wrap items-center gap-1">
+                                  {r.members.map((m) => {
+                                    const p = event.photographers.find((x) => x.acronym === m);
+                                    return (
+                                      <span key={m} className="text-slate-700">
+                                        <span className="inline-flex h-[18px] min-w-8 items-center justify-center rounded bg-slate-900 px-1 text-[10px] font-bold text-white">
+                                          {m}
+                                        </span>
+                                        {p?.name ? ` ${p.name}` : ""}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <KV label="Rooms">{hotel.rooms}</KV>
+                  )}
+                  {hotel.notes && <Markdown text={hotel.notes} className="pt-1" />}
                 </div>
-              ) : (
-                <KV label="Rooms">{event.hotel.rooms}</KV>
-              )}
-              {event.hotel.notes && <Markdown text={event.hotel.notes} className="pt-1" />}
+              ))}
             </div>
           </Section>
         )}
