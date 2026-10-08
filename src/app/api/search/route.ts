@@ -14,32 +14,33 @@ export async function GET(req: Request) {
 
   await connectDB();
   const rx = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+  const scope = user.role === "admin" ? {} : { ownerId: user.id }; // admins search everything
 
   const [events, templates, files] = await Promise.all([
     Event.find({
-      ownerId: user.id,
+      ...scope,
       $or: [{ name: rx }, { location: rx }, { type: rx }, { notes: rx }, { "documents.title": rx }],
     })
       .sort({ date: -1 })
       .limit(20)
       .lean(),
     Template.find({
-      ownerId: user.id,
+      ...scope,
       $or: [{ title: rx }, { body: rx }, { tags: rx }],
     })
       .limit(20)
       .lean(),
     FileDoc.find({
-      ownerId: user.id,
+      ...scope,
       $or: [{ filename: rx }, { description: rx }],
     })
       .limit(20)
       .lean(),
   ]);
 
-  // Position-level search across own events (acronym or position id)
+  // Position-level search (acronym or position id)
   const posEvents = await Event.find({
-    ownerId: user.id,
+    ...scope,
     $or: [{ "positions.id": rx }, { "positions.photographer": rx }],
   })
     .select("_id name positions")

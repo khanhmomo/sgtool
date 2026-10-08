@@ -10,6 +10,7 @@ import {
   CalendarDays,
   Library,
   Users,
+  UserCog,
   FolderOpen,
   Settings,
   Search,
@@ -32,13 +33,17 @@ export default function AppShell({
   user,
   children,
 }: {
-  user: { name: string; acronym: string; email: string };
+  user: { name: string; acronym: string; email: string; role?: string };
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const navItems =
+    user.role === "admin"
+      ? [...NAV.slice(0, -1), { href: "/accounts", label: "Accounts", icon: UserCog }, NAV[NAV.length - 1]]
+      : NAV;
 
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -47,7 +52,7 @@ export default function AppShell({
 
   const nav = (
     <nav className="flex flex-col gap-1">
-      {NAV.map((item) => {
+      {navItems.map((item) => {
         const active =
           pathname === item.href || pathname.startsWith(item.href + "/");
         const Icon = item.icon;
@@ -92,7 +97,7 @@ export default function AppShell({
             </div>
             <div className="min-w-0 leading-tight">
               <p className="truncate text-sm font-semibold text-white">{user.name}</p>
-              <p className="truncate text-[11px] text-slate-500">{user.acronym} · Team Leader</p>
+              <p className="truncate text-[11px] text-slate-500">{user.acronym} · {user.role === "admin" ? "Admin" : "Team Leader"}</p>
             </div>
           </div>
           <button

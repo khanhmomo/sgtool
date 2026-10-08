@@ -21,7 +21,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         await connectDB();
         const user = await User.findOne({ email });
-        if (!user) return null;
+        if (!user || user.active === false) return null;
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) return null;
 
@@ -31,6 +31,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           image: user.image || undefined,
           acronym: user.acronym,
+          role: user.role || "team_leader",
+          mustChangePassword: !!user.mustChangePassword,
         };
       },
     }),
@@ -41,10 +43,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 export async function requireUser() {
   const session = await auth();
   if (!session?.user?.id) return null;
+  const u = session.user as { acronym?: string; role?: string; mustChangePassword?: boolean };
   return {
     id: session.user.id,
     name: session.user.name || "",
     email: session.user.email || "",
-    acronym: (session.user as { acronym?: string }).acronym || "",
+    acronym: u.acronym || "",
+    role: u.role === "admin" ? "admin" : "team_leader",
+    mustChangePassword: !!u.mustChangePassword,
   };
+}
+
+/** Require an admin user — returns null for TLs or anonymous callers. */
+export async function requireAdmin() {
+  const user = await requireUser();
+  return user?.role === "admin" ? user : null;
 }

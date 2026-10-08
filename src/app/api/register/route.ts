@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { connectDB } from "@/lib/db";
 import { User } from "@/lib/models";
+import { requireAdmin } from "@/auth";
 
 const schema = z.object({
   name: z.string().min(2).max(80),
@@ -17,6 +18,13 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
+    const admin = await requireAdmin();
+    if (!admin) {
+      return NextResponse.json(
+        { error: "Registration is restricted. Ask an admin to create your account." },
+        { status: 403 }
+      );
+    }
     const body = await req.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) {

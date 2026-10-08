@@ -17,7 +17,8 @@ export default async function EventPage(props: {
   const { tab } = await props.searchParams;
 
   await connectDB();
-  const event = await Event.findOne({ _id: id, ownerId: session.user.id });
+  const isAdmin = (session.user as { role?: string }).role === "admin";
+  const event = await Event.findOne(isAdmin ? { _id: id } : { _id: id, ownerId: session.user.id });
   if (!event) notFound();
   const files = await FileDoc.find({ eventId: event._id }).sort({ createdAt: -1 }).lean();
 

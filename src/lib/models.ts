@@ -8,7 +8,9 @@ const UserSchema = new Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
     image: { type: String, default: "" },
-    role: { type: String, default: "team_leader" },
+    role: { type: String, enum: ["admin", "team_leader"], default: "team_leader" },
+    mustChangePassword: { type: Boolean, default: false },
+    active: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

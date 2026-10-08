@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Button, Card, Field, Input, Notice } from "@/components/ui";
 
 export default function LoginPage() {
@@ -57,12 +56,6 @@ export default function LoginPage() {
           Sign in
         </Button>
       </form>
-      <p className="mt-4 text-center text-sm text-slate-500">
-        No account?{" "}
-        <Link href="/register" className="font-semibold text-blue-600 hover:underline">
-          Register
-        </Link>
-      </p>
     </Card>
   );
 }

@@ -266,7 +266,10 @@ export interface UserDTO {
   acronym: string;
   email: string;
   image: string;
-  role: string;
+  role: string; // "admin" | "team_leader"
+  mustChangePassword: boolean;
+  active: boolean;
+  createdAt: string;
 }
 
 // Result of analyzing a GPS point against the course

@@ -20,21 +20,34 @@ export const authConfig = {
         return Response.redirect(new URL(isLoggedIn ? "/dashboard" : "/login", request.nextUrl));
       }
       if (isPublic) return true;
-      return isLoggedIn; // unauthenticated → NextAuth redirects to signIn page
+      if (!isLoggedIn) return false; // → NextAuth redirects to signIn page
+
+      // First-login: force password change before anything else.
+      // Session callback maps token.mustChangePassword onto auth.user.
+      const mustChange = !!(
+        auth.user as { mustChangePassword?: boolean } | undefined
+      )?.mustChangePassword;
+      if (mustChange && !pathname.startsWith("/change-password") && !pathname.startsWith("/api/")) {
+        return Response.redirect(new URL("/change-password", request.nextUrl));
+      }
+      return true;
     },
     jwt({ token, user }) {
       if (user) {
         token.uid = user.id;
         token.acronym = (user as { acronym?: string }).acronym;
+        token.role = (user as { role?: string }).role || "team_leader";
+        token.mustChangePassword = !!(user as { mustChangePassword?: boolean }).mustChangePassword;
       }
       return token;
     },
     session({ session, token }) {
       if (session.user) {
         session.user.id = String(token.uid || token.sub || "");
-        (session.user as { acronym?: string }).acronym = String(
-          (token as { acronym?: string }).acronym || ""
-        );
+        const u = session.user as { acronym?: string; role?: string; mustChangePassword?: boolean };
+        u.acronym = String((token as { acronym?: string }).acronym || "");
+        u.role = String((token as { role?: string }).role || "team_leader");
+        u.mustChangePassword = !!(token as { mustChangePassword?: boolean }).mustChangePassword;
       }
       return session;
     },

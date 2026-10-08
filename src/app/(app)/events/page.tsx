@@ -9,6 +9,7 @@ import { STATUS_META } from "@/lib/design";
 import { fmtDate } from "@/lib/utils";
 import { Badge, Button, Card, Empty } from "@/components/ui";
 import EventsFilter from "@/components/EventsFilter";
+import AssignTl from "@/components/AssignTl";
 
 export const dynamic = "force-dynamic";
 
@@ -20,8 +21,8 @@ export default async function EventsPage(props: {
   const { q = "", status = "" } = await props.searchParams;
 
   await connectDB();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const filter: any = { ownerId: session.user.id };
+  const isAdmin = (session.user as { role?: string }).role === "admin";
+  const filter: Record<string, unknown> = isAdmin ? {} : { ownerId: session.user.id };
   if (status) filter.status = status;
   if (q) {
     filter.$or = [
@@ -84,6 +85,9 @@ export default async function EventsPage(props: {
                       <span>{e.photographers.length} photographers</span>
                       <span>{e.positions.length} positions</span>
                     </p>
+                    {isAdmin && (
+                      <AssignTl eventId={e.id} ownerAcronym={e.ownerAcronym} ownerId={e.ownerId} />
+                    )}
                   </div>
                   <ArrowRight size={16} className="shrink-0 text-slate-300 group-hover:text-slate-500" />
                 </Card>

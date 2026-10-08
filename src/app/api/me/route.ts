@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { connectDB } from "@/lib/db";
 import { User } from "@/lib/models";
@@ -14,6 +15,8 @@ const schema = z.object({
     .regex(/^[A-Za-z0-9]+$/)
     .optional(),
   image: z.string().max(500).optional(),
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(8).max(100).optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -30,6 +33,24 @@ export async function PATCH(req: Request) {
 
   await connectDB();
 
+  const $set: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(parsed.data)) {
+    if (v !== undefined && k !== "currentPassword" && k !== "newPassword") $set[k] = v;
+  }
+
+  if (parsed.data.newPassword) {
+    const doc0 = await User.findById(user.id);
+    if (!doc0) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    // Forced first-login change already authenticated via the temp password —
+    // only require the current password for voluntary changes.
+    if (!doc0.mustChangePassword) {
+      const ok = await bcrypt.compare(parsed.data.currentPassword || "", doc0.passwordHash);
+      if (!ok) return NextResponse.json({ error: "Current password is incorrect." }, { status: 400 });
+    }
+    $set.passwordHash = await bcrypt.hash(parsed.data.newPassword, 10);
+    $set.mustChangePassword = false;
+  }
+
   if (parsed.data.acronym) {
     const clash = await User.findOne({
       acronym: parsed.data.acronym.toUpperCase(),
@@ -38,10 +59,10 @@ export async function PATCH(req: Request) {
     if (clash) {
       return NextResponse.json({ error: "That acronym is already taken." }, { status: 409 });
     }
-    parsed.data.acronym = parsed.data.acronym.toUpperCase();
+    $set.acronym = parsed.data.acronym.toUpperCase();
   }
 
-  const doc = await User.findByIdAndUpdate(user.id, { $set: parsed.data }, { new: true });
+  const doc = await User.findByIdAndUpdate(user.id, { $set }, { new: true });
   if (!doc) return NextResponse.json({ error: "User not found" }, { status: 404 });
   return NextResponse.json({ user: serializeUser(doc) });
 }

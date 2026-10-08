@@ -7,9 +7,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!session?.user) redirect("/login");
 
   const acronym = (session.user as { acronym?: string }).acronym || "";
+  const role = (session.user as { role?: string }).role || "team_leader";
   return (
     <AppShell
-      user={{ name: session.user.name || "", acronym, email: session.user.email || "" }}
+      user={{ name: session.user.name || "", acronym, email: session.user.email || "", role }}
     >
       {children}
     </AppShell>

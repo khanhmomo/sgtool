@@ -98,5 +98,8 @@ export function serializeUser(doc: any): UserDTO {
     email: u.email || "",
     image: u.image || "",
     role: u.role || "team_leader",
+    mustChangePassword: !!u.mustChangePassword,
+    active: u.active !== false,
+    createdAt: u.createdAt || "",
   };
 }
