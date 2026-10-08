@@ -25,6 +25,11 @@ export interface RoomAssignment {
   members: string[]; // photographer acronyms
 }
 
+export interface BestofInfo {
+  link: string;   // sportograf event URL
+  images: string[]; // full-size CDN URLs (thumbs derived via /images/ → /thumbs/)
+}
+
 export interface HotelInfo {
   name: string;
   address: string;
@@ -217,6 +222,7 @@ export interface EventDTO {
   shareSlug: string | null;
   venue: VenueInfo;
   hotels: HotelInfo[];
+  bestof: BestofInfo | null;
   transport: Transport[];
   schedule: ScheduleItem[];
   contacts: Contact[];

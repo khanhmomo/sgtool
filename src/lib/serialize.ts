@@ -38,6 +38,10 @@ export function serializeEvent(doc: any): EventDTO {
           ? [e.hotel]
           : []
     ).map((h: Record<string, unknown>) => ({ ...EMPTY_HOTEL, ...(h || {}) })),
+    bestof:
+      e.bestof && Array.isArray(e.bestof.images)
+        ? { link: e.bestof.link || "", images: e.bestof.images }
+        : null,
     transport: e.transport || [],
     schedule: e.schedule || [],
     contacts: e.contacts || [],

@@ -19,6 +19,7 @@ import {
   ImageIcon,
   Eye,
   Navigation,
+  Images,
 } from "lucide-react";
 import { Badge, Card } from "@/components/ui";
 import { STATUS_META, SPORT_META } from "@/lib/design";
@@ -29,6 +30,9 @@ import type { EventDTO, FileDTO } from "@/types";
 import { HyroxPublicView } from "@/components/workspace/HyroxTactic";
 
 const CourseMap = dynamic(() => import("@/components/CourseMap"), { ssr: false });
+
+/** Thumbnails shown before "+N more" opens the lightbox */
+const PREVIEW_COUNT = 12;
 
 function Section({
   id,
@@ -128,6 +132,21 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
       return 0;
     });
 
+  // Best-of lightbox state + FileDTO-shaped wrappers for the shared Lightbox
+  const [boIndex, setBoIndex] = useState<number | null>(null);
+  const boFiles: FileDTO[] = (event.bestof?.images || []).map((src, i) => ({
+    id: `bo-${i}`,
+    url: src,
+    filename: `Best-of ${i + 1}`,
+    mime: "image/jpeg",
+    size: 0,
+    category: "other",
+    description: "",
+    hidden: false,
+    uploadedBy: "",
+    createdAt: "",
+  }));
+
   const nav = [
     { id: "venue", label: "Venue", icon: MapPin, show: !!event.venue.name },
     { id: "calltime", label: "Call time", icon: AlarmClock, show: callTimes.length > 0 },
@@ -136,6 +155,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
     { id: "files", label: "Files", icon: FolderOpen, show: files.length > 0 },
     { id: "hotel", label: "Hotel", icon: BedDouble, show: event.hotels.some((h) => h.name) },
     { id: "team", label: "Team", icon: Camera, show: event.photographers.length > 0 },
+    { id: "bestof", label: "Best-of", icon: Images, show: (event.bestof?.images.length ?? 0) > 0 },
   ].filter((n) => n.show);
 
   return (
@@ -524,12 +544,57 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         )}
         </div>
 
+        {/* Best-of reference gallery (previous year) */}
+        {event.bestof && event.bestof.images.length > 0 && (
+          <Section id="bestof" icon={<Images size={16} />} title={`Best-of reference · ${event.bestof.images.length} photos`} defaultOpen={false}>
+            <p className="mb-3 text-xs text-slate-500">
+              Reference gallery from a previous edition ·{" "}
+              <a href={event.bestof.link} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline">
+                View on sportograf.com
+              </a>
+            </p>
+            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+              {event.bestof.images.slice(0, PREVIEW_COUNT).map((src, i) => (
+                <button
+                  key={i}
+                  onClick={() => setBoIndex(i)}
+                  className="group block overflow-hidden rounded-md bg-slate-100"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- external CDN images */}
+                  <img
+                    src={src}
+                    alt={`Best-of ${i + 1}`}
+                    loading="lazy"
+                    className="aspect-square w-full object-cover transition-transform group-hover:scale-105"
+                  />
+                </button>
+              ))}
+              {event.bestof.images.length > PREVIEW_COUNT && (
+                <button
+                  onClick={() => setBoIndex(PREVIEW_COUNT)}
+                  className="flex aspect-square items-center justify-center rounded-md bg-slate-900 text-sm font-bold text-white transition-colors hover:bg-slate-700"
+                >
+                  +{event.bestof.images.length - PREVIEW_COUNT} more
+                </button>
+              )}
+            </div>
+          </Section>
+        )}
+
         <footer className="pt-6 text-center text-[10px] uppercase tracking-widest text-slate-400">
           Sportograf TL Tool · One event. One source of truth.
         </footer>
       </main>
 
       {pdf && <PdfViewer file={pdf} onClose={() => setPdf(null)} />}
+      {boIndex !== null && event.bestof && (
+        <Lightbox
+          files={boFiles}
+          index={boIndex}
+          onClose={() => setBoIndex(null)}
+          onNavigate={setBoIndex}
+        />
+      )}
       {imgIndex !== null && images[imgIndex] && (
         <Lightbox files={images} index={imgIndex} onClose={() => setImgIndex(null)} onNavigate={setImgIndex} />
       )}

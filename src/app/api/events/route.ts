@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db";
 import { Event, Template } from "@/lib/models";
 import { requireUser } from "@/auth";
 import { serializeEvent } from "@/lib/serialize";
+import { fetchBestof } from "@/lib/bestof";
 import type { EventDoc } from "@/types";
 
 const createSchema = z.object({
@@ -16,6 +17,7 @@ const createSchema = z.object({
   country: z.string().max(100).optional(),
   organizer: z.string().max(200).optional(),
   website: z.string().max(300).optional(),
+  bestofUrl: z.string().max(300).optional(),
   templateId: z.string().optional(),
 });
 
@@ -79,6 +81,7 @@ export async function POST(req: Request) {
     shareSlug: crypto.randomBytes(4).toString("hex"), // e.g. a1b2c3d4
     documents,
     checklist,
+    bestof: d.bestofUrl ? await fetchBestof(d.bestofUrl) : null,
   });
 
   return NextResponse.json({ event: serializeEvent(event) }, { status: 201 });

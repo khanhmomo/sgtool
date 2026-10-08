@@ -44,6 +44,13 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  // bestofUrl: resolve sportograf best-of link into image URLs (empty string clears)
+  if (body.bestofUrl !== undefined) {
+    const { fetchBestof } = await import("@/lib/bestof");
+    event.bestof = body.bestofUrl ? await fetchBestof(String(body.bestofUrl)) : null;
+    event.markModified("bestof");
+  }
+
   // Admin takeover: reassign the event to another Team Leader
   if (body.ownerId !== undefined) {
     if (user.role !== "admin") {

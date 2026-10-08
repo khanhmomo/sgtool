@@ -28,6 +28,7 @@ import type { TabProps } from "./EventWorkspace";
 
 const EVENT_TYPES = [
   "IRONMAN", "IRONMAN 70.3", "Obstacle Race", "Marathon", "Trail Run", "HYROX",
+  "Fitness Indoor", "Bike Race",
 ];
 
 export default function SettingsTab({
@@ -41,6 +42,7 @@ export default function SettingsTab({
     location: event.location, country: event.country, organizer: event.organizer,
     website: event.website, status: event.status,
   });
+  const [bestofUrl, setBestofUrl] = useState(event.bestof?.link || "");
   const [dirty, setDirty] = useState(false);
   const [copied, setCopied] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
@@ -120,7 +122,28 @@ export default function SettingsTab({
           <Field label="Country"><Input value={form.country} onChange={set("country")} /></Field>
           <Field label="Organizer"><Input value={form.organizer} onChange={set("organizer")} /></Field>
           <Field label="Website"><Input value={form.website} onChange={set("website")} /></Field>
+          <Field label="Previous-year best-of (Sportograf link)" className="sm:col-span-2">
+            <Input
+              value={bestofUrl}
+              onChange={(e) => { setBestofUrl(e.target.value); setDirty(true); }}
+              placeholder="https://www.sportograf.com/en/event/26335"
+            />
+          </Field>
         </div>
+        {event.bestof && (
+          <p className="px-4 pb-1 text-xs text-slate-500">
+            Best-of gallery loaded: <b>{event.bestof.images.length} photos</b>
+            {" · "}
+            <a href={event.bestof.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+              {event.bestof.link}
+            </a>
+            {bestofUrl.trim() && bestofUrl !== event.bestof.link && " — save to reload"}
+            {!bestofUrl.trim() && " — clear the field and save to remove"}
+          </p>
+        )}
+        {!event.bestof && bestofUrl.trim() && (
+          <p className="px-4 pb-1 text-xs text-slate-400">Save to load the best-of gallery.</p>
+        )}
         <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
           <p className="text-xs text-slate-400">
             Created {fmtDate(event.createdAt)} · Updated {fmtDate(event.updatedAt)}
@@ -131,7 +154,11 @@ export default function SettingsTab({
             loading={saving}
             disabled={!dirty}
             onClick={() =>
-              patch({ ...form, status: form.status as EventStatus }).then((ok) => ok && setDirty(false))
+              patch({
+                ...form,
+                status: form.status as EventStatus,
+                bestofUrl: bestofUrl.trim(),
+              } as Parameters<typeof patch>[0]).then((ok) => ok && setDirty(false))
             }
           >
             <Save size={13} /> Save changes

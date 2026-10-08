@@ -15,7 +15,7 @@ export default function NewEventForm({ templates }: { templates: TemplateDTO[] }
   const router = useRouter();
   const [form, setForm] = useState({
     name: "", type: "IRONMAN 70.3", date: "", endDate: "",
-    location: "", country: "", organizer: "", website: "", templateId: "",
+    location: "", country: "", organizer: "", website: "", bestofUrl: "", templateId: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -83,6 +83,17 @@ export default function NewEventForm({ templates }: { templates: TemplateDTO[] }
           </Field>
           <Field label="Event website" className="sm:col-span-2">
             <Input value={form.website} onChange={set("website")} placeholder="https://…" />
+          </Field>
+          <Field
+            label="Previous-year best-of (Sportograf link)"
+            className="sm:col-span-2"
+            hint="Optional — photographers see the gallery as reference on the shared page."
+          >
+            <Input
+              value={form.bestofUrl}
+              onChange={set("bestofUrl")}
+              placeholder="https://www.sportograf.com/en/event/26335"
+            />
           </Field>
         </div>
       </Card>
