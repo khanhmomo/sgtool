@@ -32,12 +32,16 @@ export const authConfig = {
       }
       return true;
     },
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session }) {
       if (user) {
         token.uid = user.id;
         token.acronym = (user as { acronym?: string }).acronym;
         token.role = (user as { role?: string }).role || "team_leader";
         token.mustChangePassword = !!(user as { mustChangePassword?: boolean }).mustChangePassword;
+      }
+      // Client-side session update (e.g. after forced password change)
+      if (trigger === "update" && session && "mustChangePassword" in session) {
+        token.mustChangePassword = !!session.mustChangePassword;
       }
       return token;
     },

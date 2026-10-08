@@ -2,11 +2,20 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signIn, signOut } from "next-auth/react";
+import { SessionProvider, useSession, signOut } from "next-auth/react";
 import { Button, Card, Field, Input, Notice } from "@/components/ui";
 
 export default function ChangePasswordPage() {
+  return (
+    <SessionProvider>
+      <ChangePasswordForm />
+    </SessionProvider>
+  );
+}
+
+function ChangePasswordForm() {
   const router = useRouter();
+  const { update } = useSession();
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -30,20 +39,16 @@ export default function ChangePasswordPage() {
       setError((await res.json().catch(() => ({}))).error || "Failed to update password.");
       return;
     }
-    const { user } = await res.json();
-    // Re-authenticate with the new password so the JWT drops mustChangePassword
-    const signInRes = await signIn("credentials", {
-      redirect: false,
-      email: user?.email,
-      password: next,
-    });
-    setLoading(false);
-    if (signInRes?.error) {
+    // Rewrite the JWT in place so mustChangePassword clears without re-login
+    try {
+      await update({ mustChangePassword: false });
+    } catch {
       await signOut({ redirect: false });
       router.push("/login?changed=1");
       router.refresh();
       return;
     }
+    setLoading(false);
     router.push("/dashboard");
     router.refresh();
   }
