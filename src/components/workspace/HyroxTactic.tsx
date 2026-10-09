@@ -842,9 +842,9 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
       </div>
       {/* Photographer pool — sticky right column, drag onto any cell */}
       {event.photographers.length > 0 && (
-        <aside className="sticky top-20 w-36 shrink-0 rounded-lg border border-slate-200 bg-white p-2">
+        <aside className="sticky top-20 w-60 shrink-0 self-start rounded-lg border border-slate-200 bg-white p-2">
           <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Team</p>
-          <div className="flex flex-col gap-1">
+          <div className="grid grid-cols-2 gap-1 overflow-y-auto" style={{ maxHeight: "calc(100vh - 140px)" }}>
             {event.photographers.map((p) => {
               const tag = p.acronym || p.name;
               const covering = coveringSet.has(tag);
