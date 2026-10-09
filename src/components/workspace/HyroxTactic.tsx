@@ -75,7 +75,7 @@ function NameCell({
         if (name) onDropName(name);
       } : undefined}
       className={cn(
-        "flex min-h-7 flex-wrap items-center gap-1 rounded px-1 py-0.5",
+        "flex h-full min-h-7 w-full flex-wrap items-center gap-1 rounded px-1 py-0.5",
         over && "bg-blue-50 ring-1 ring-blue-300"
       )}
     >
