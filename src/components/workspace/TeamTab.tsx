@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Users, Plus, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Users, Plus, Trash2, FileUp } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input, Notice } from "@/components/ui";
 import { uid } from "@/lib/utils";
 import type { Photographer } from "@/types";
@@ -12,7 +12,8 @@ const ROLES = ["Photographer", "Team Leader", "Second Shooter", "Drone", "Video"
 export default function TeamTab({ event, patch, saving }: TabProps) {
   const [team, setTeam] = useState<Photographer[]>(event.photographers);
   const [dirty, setDirty] = useState(false);
-  const [csv, setCsv] = useState("");
+  const [importMsg, setImportMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function update(i: number, k: keyof Photographer, val: string) {
     setTeam((t) => t.map((x, j) => (j === i ? { ...x, [k]: val } : x)));
@@ -27,24 +28,86 @@ export default function TeamTab({ event, patch, saving }: TabProps) {
     setDirty(true);
   }
 
-  function importCsv() {
-    // Lines like: AKT,Mo Tran,+123,akt@x.com
-    const rows = csv
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .map((l) => {
-        const [acronym = "", name = "", phone = "", email = "", role = "Photographer"] = l
-          .split(/[,\t]/)
-          .map((s) => s.trim());
-        return { id: uid(), acronym: acronym.toUpperCase(), name, phone, email, role, vehicle: "", notes: "" };
-      })
-      .filter((p) => p.acronym);
-    if (rows.length) {
-      setTeam((t) => [...t, ...rows]);
-      setDirty(true);
-      setCsv("");
+  // RFC-4180-ish splitter — handles quoted cells containing commas/newlines
+  function splitLine(line: string, sep: string) {
+    const out: string[] = [];
+    let cur = "";
+    let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (c === sep && !inQ) {
+        out.push(cur.trim());
+        cur = "";
+      } else cur += c;
     }
+    out.push(cur.trim());
+    return out;
+  }
+
+  function findCol(header: string[], ...names: string[]) {
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, "");
+    return header.findIndex((h) => names.some((n) => norm(h) === norm(n)));
+  }
+
+  async function importFile(f: File) {
+    setImportMsg(null);
+    const text = (await f.text()).replace(/^\uFEFF/, ""); // strip BOM
+    const lines = text.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) {
+      setImportMsg({ kind: "error", text: "CSV looks empty — need a header row plus data rows." });
+      return;
+    }
+    const sep = lines[0].includes("\t") && !lines[0].includes(",") ? "\t" : ",";
+    const header = splitLine(lines[0], sep);
+
+    const iAcr = findCol(header, "Acronym");
+    const iFirst = findCol(header, "First Name", "Firstname", "First");
+    const iLast = findCol(header, "Last Name", "Lastname", "Last");
+    const iEmail = findCol(header, "Email", "E-mail");
+    const iPhone = findCol(header, "Phone", "Phone Number", "Mobile");
+
+    if (iAcr < 0) {
+      setImportMsg({ kind: "error", text: 'No "Acronym" column found in the header row.' });
+      return;
+    }
+
+    const existing = new Set(team.map((p) => p.acronym.toUpperCase()));
+    const added: Photographer[] = [];
+    let skipped = 0;
+    for (const line of lines.slice(1)) {
+      const cells = splitLine(line, sep);
+      const acronym = (cells[iAcr] || "").toUpperCase();
+      if (!acronym) continue;
+      if (existing.has(acronym)) { skipped++; continue; }
+      const name = [iFirst >= 0 ? cells[iFirst] : "", iLast >= 0 ? cells[iLast] : ""]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      added.push({
+        id: uid(),
+        acronym,
+        name,
+        phone: iPhone >= 0 ? cells[iPhone] || "" : "",
+        email: iEmail >= 0 ? cells[iEmail] || "" : "",
+        role: "Photographer",
+        vehicle: "",
+        notes: "",
+      });
+      existing.add(acronym);
+    }
+
+    if (added.length) {
+      setTeam((t) => [...t, ...added]);
+      setDirty(true);
+    }
+    setImportMsg(
+      added.length
+        ? { kind: "ok", text: `Imported ${added.length} photographer${added.length > 1 ? "s" : ""}${skipped ? `, skipped ${skipped} duplicate acronym${skipped > 1 ? "s" : ""}` : ""}. Click Save to persist.` }
+        : { kind: "error", text: skipped ? "All rows were duplicates of existing acronyms." : "No photographers found in the file." }
+    );
   }
 
   return (
@@ -127,21 +190,26 @@ export default function TeamTab({ event, patch, saving }: TabProps) {
       </Card>
 
       <Card>
-        <CardHeader title="Quick import" />
+        <CardHeader title="Import from CSV" icon={<FileUp size={15} className="text-blue-600" />} />
         <div className="space-y-2 p-4">
           <Notice kind="info">
-            Paste one photographer per line: <code>ACRONYM, Name, Phone, Email, Role</code>
+            Upload your dispatch sheet (CSV from em2.sportograf.com)
           </Notice>
-          <textarea
-            value={csv}
-            onChange={(e) => setCsv(e.target.value)}
-            rows={3}
-            placeholder={"GIP, Giang Pham, +84 9xx, gip@x.com\nMAT, Mateo, +1 555, mat@x.com"}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".csv,.txt,.tsv,text/csv,text/tab-separated-values"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void importFile(f);
+              if (fileRef.current) fileRef.current.value = "";
+            }}
           />
-          <Button size="sm" variant="outline" onClick={importCsv} disabled={!csv.trim()}>
-            Import
+          <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
+            <FileUp size={14} /> Choose CSV file
           </Button>
+          {importMsg && <Notice kind={importMsg.kind}>{importMsg.text}</Notice>}
         </div>
       </Card>
     </div>

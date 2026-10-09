@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { Save, KeyRound } from "lucide-react";
+import { useRef, useState } from "react";
+import { Save, KeyRound, ImagePlus } from "lucide-react";
 import { Button, Card, CardHeader, Field, Input, Notice } from "@/components/ui";
 import type { UserDTO } from "@/types";
 
 export default function SettingsClient({ user }: { user: UserDTO }) {
   const [form, setForm] = useState({ name: user.name, image: user.image });
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
@@ -74,12 +76,53 @@ export default function SettingsClient({ user }: { user: UserDTO }) {
         <Field label="Email" hint="Assigned by your admin — contact them to change it">
           <Input value={user.email} disabled className="bg-slate-50 text-slate-400" />
         </Field>
-        <Field label="Profile image URL">
-          <Input
-            value={form.image}
-            onChange={(e) => setForm({ ...form, image: e.target.value })}
-            placeholder="https://…"
-          />
+        <Field label="Profile photo">
+          <div className="flex items-center gap-3">
+            {form.image ? (
+              // eslint-disable-next-line @next/next/no-img-element -- user-uploaded/blob URL
+              <img src={form.image} alt={form.name} className="h-14 w-14 rounded-full object-cover" />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-sm font-bold text-white">
+                {user.acronym.slice(0, 3)}
+              </div>
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                setAvatarBusy(true);
+                setMsg(null);
+                try {
+                  const fd = new FormData();
+                  fd.append("file", f);
+                  const res = await fetch("/api/me/avatar", { method: "POST", body: fd });
+                  const data = await res.json().catch(() => ({}));
+                  if (res.ok) {
+                    setForm((p) => ({ ...p, image: data.user.image }));
+                    setMsg({ kind: "ok", text: "Avatar updated. (Sign out/in to refresh the sidebar.)" });
+                  } else {
+                    setMsg({ kind: "error", text: data.error || "Upload failed." });
+                  }
+                } finally {
+                  setAvatarBusy(false);
+                  if (fileRef.current) fileRef.current.value = "";
+                }
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              loading={avatarBusy}
+              onClick={() => fileRef.current?.click()}
+            >
+              <ImagePlus size={14} /> {form.image ? "Change photo" : "Upload photo"}
+            </Button>
+          </div>
         </Field>
         {msg && <Notice kind={msg.kind}>{msg.text}</Notice>}
         <div className="flex justify-end">

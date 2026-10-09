@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, KeyRound, Power, UserCog, Trash2 } from "lucide-react";
+import { Plus, KeyRound, Power, UserCog, Trash2, Pencil, Save, X } from "lucide-react";
 import { Button, Card, CardHeader, Field, Input, Notice, Badge } from "@/components/ui";
 import { cn, fmtDate } from "@/lib/utils";
 import type { UserDTO } from "@/types";
@@ -22,6 +22,10 @@ export default function AccountsClient({ meId }: { meId: string }) {
   const [resetId, setResetId] = useState("");
   const [resetPw, setResetPw] = useState("");
   const [busy, setBusy] = useState("");
+
+  // per-row edit form
+  const [editId, setEditId] = useState("");
+  const [editForm, setEditForm] = useState({ name: "", acronym: "", email: "" });
 
   async function load() {
     const res = await fetch("/api/accounts");
@@ -78,6 +82,7 @@ export default function AccountsClient({ meId }: { meId: string }) {
     if (body.resetPassword) setNotice("Password reset — the user must set a new one on next sign-in.");
     setResetId("");
     setResetPw("");
+    setEditId("");
     load();
   }
 
@@ -140,9 +145,14 @@ export default function AccountsClient({ meId }: { meId: string }) {
         <div className="divide-y divide-slate-100">
           {(users || []).map((u) => (
             <div key={u.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">
-                {u.acronym.slice(0, 3)}
-              </div>
+              {u.image ? (
+                // eslint-disable-next-line @next/next/no-img-element -- user-uploaded/blob URL
+                <img src={u.image} alt={u.name} className="h-8 w-8 shrink-0 rounded-full object-cover" />
+              ) : (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">
+                  {u.acronym.slice(0, 3)}
+                </div>
+              )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-slate-900">
                   {u.name}{" "}
@@ -162,6 +172,16 @@ export default function AccountsClient({ meId }: { meId: string }) {
               )}
               {u.id !== meId && (
                 <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditId(u.id);
+                      setEditForm({ name: u.name, acronym: u.acronym, email: u.email });
+                    }}
+                  >
+                    <Pencil size={13} /> Edit
+                  </Button>
                   {resetId === u.id ? (
                     <form
                       onSubmit={(e) => {
@@ -225,6 +245,71 @@ export default function AccountsClient({ meId }: { meId: string }) {
           )}
         </div>
       </Card>
+
+      {/* Edit account modal */}
+      {editId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setEditId("")}>
+          <div
+            className="w-full max-w-md rounded-xl bg-white shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
+              <h2 className="text-sm font-bold text-slate-900">Edit account</h2>
+              <button onClick={() => setEditId("")} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+                <X size={16} />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                patch(editId, {
+                  name: editForm.name,
+                  acronym: editForm.acronym,
+                  email: editForm.email,
+                });
+              }}
+              className="grid gap-4 p-5"
+            >
+              <Field label="Full name">
+                <Input
+                  required
+                  autoFocus
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="Jane Doe"
+                />
+              </Field>
+              <Field label="Acronym (2–6 chars)" hint="Used for position IDs and the sidebar badge">
+                <Input
+                  required
+                  value={editForm.acronym}
+                  onChange={(e) => setEditForm({ ...editForm, acronym: e.target.value.toUpperCase() })}
+                  placeholder="JD"
+                  maxLength={6}
+                  className="uppercase"
+                />
+              </Field>
+              <Field label="Email">
+                <Input
+                  required
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  placeholder="jane@sportograf.com"
+                />
+              </Field>
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                <Button type="button" variant="outline" onClick={() => setEditId("")}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="accent" loading={busy === editId}>
+                  <Save size={14} /> Save changes
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

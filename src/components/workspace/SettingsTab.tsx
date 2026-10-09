@@ -82,11 +82,21 @@ export default function SettingsTab({
     setTimeout(() => setCopied(false), 2000);
   }
 
+  const [deleteError, setDeleteError] = useState("");
+
   async function deleteEvent() {
     setDeleting(true);
+    setDeleteError("");
     try {
       const res = await fetch(`/api/events/${event.id}`, { method: "DELETE" });
-      if (res.ok) onDeleted();
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        onDeleted();
+      } else {
+        setDeleteError(data.error || `Delete failed (${res.status})`);
+      }
+    } catch {
+      setDeleteError("Delete failed. Check your connection.");
     } finally {
       setDeleting(false);
     }
@@ -233,6 +243,11 @@ export default function SettingsTab({
             </Button>
           )}
         </div>
+        {deleteError && (
+          <p className="border-t border-red-100 px-4 py-2 text-xs font-medium text-red-600">
+            {deleteError}
+          </p>
+        )}
       </Card>
     </div>
   );

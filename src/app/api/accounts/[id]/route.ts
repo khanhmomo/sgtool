@@ -17,6 +17,7 @@ const patchSchema = z
       .max(6)
       .regex(/^[A-Za-z0-9]+$/)
       .optional(),
+    email: z.string().email().optional(),
     active: z.boolean().optional(),
     resetPassword: z.string().min(8).max(100).optional(),
   })
@@ -45,7 +46,26 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
   const $set: Record<string, unknown> = {};
   if (parsed.data.name) $set.name = parsed.data.name;
-  if (parsed.data.acronym) $set.acronym = parsed.data.acronym.toUpperCase();
+  if (parsed.data.acronym) {
+    const clash = await User.findOne({
+      acronym: parsed.data.acronym.toUpperCase(),
+      _id: { $ne: id },
+    });
+    if (clash) {
+      return NextResponse.json({ error: "That acronym is already taken." }, { status: 409 });
+    }
+    $set.acronym = parsed.data.acronym.toUpperCase();
+  }
+  if (parsed.data.email) {
+    const clash = await User.findOne({
+      email: parsed.data.email.toLowerCase(),
+      _id: { $ne: id },
+    });
+    if (clash) {
+      return NextResponse.json({ error: "That email is already in use." }, { status: 409 });
+    }
+    $set.email = parsed.data.email.toLowerCase();
+  }
   if (parsed.data.active !== undefined) $set.active = parsed.data.active;
   if (parsed.data.resetPassword) {
     $set.passwordHash = await bcrypt.hash(parsed.data.resetPassword, 10);

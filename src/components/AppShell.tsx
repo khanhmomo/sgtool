@@ -33,7 +33,7 @@ export default function AppShell({
   user,
   children,
 }: {
-  user: { name: string; acronym: string; email: string; role?: string };
+  user: { name: string; acronym: string; email: string; role?: string; image?: string };
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -92,9 +92,14 @@ export default function AppShell({
         {nav}
         <div className="mt-auto border-t border-slate-800 pt-4">
           <div className="mb-2 flex items-center gap-2.5 px-1">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 text-xs font-bold text-white">
-              {user.acronym.slice(0, 3)}
-            </div>
+            {user.image ? (
+              // eslint-disable-next-line @next/next/no-img-element -- user-uploaded/blob URL
+              <img src={user.image} alt={user.name} className="h-8 w-8 shrink-0 rounded-full object-cover" />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700 text-xs font-bold text-white">
+                {user.acronym.slice(0, 3)}
+              </div>
+            )}
             <div className="min-w-0 leading-tight">
               <p className="truncate text-sm font-semibold text-white">{user.name}</p>
               <p className="truncate text-[11px] text-slate-500">{user.acronym} · {user.role === "admin" ? "Admin" : "Team Leader"}</p>
@@ -131,9 +136,14 @@ export default function AppShell({
               className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 pl-8 pr-3 text-sm outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/20"
             />
           </form>
-          <div className="ml-2 hidden h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white md:flex">
-            {user.acronym.slice(0, 3)}
-          </div>
+          {user.image ? (
+            // eslint-disable-next-line @next/next/no-img-element -- user-uploaded/blob URL
+            <img src={user.image} alt={user.name} className="ml-2 hidden h-8 w-8 rounded-full object-cover md:block" />
+          ) : (
+            <div className="ml-2 hidden h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white md:flex">
+              {user.acronym.slice(0, 3)}
+            </div>
+          )}
         </header>
 
         {open && (
