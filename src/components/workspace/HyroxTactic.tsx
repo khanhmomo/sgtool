@@ -19,7 +19,11 @@ export const HYROX_STATIONS = [
   "Wall Ball",
   "Finish",
   "Hero Wall",
+  "LS Arch",
 ];
+
+/** External-crew stations — photographer chips come from +LS free-text input, no breaks */
+const EXTERNAL_STATIONS = new Set(["Farmers Carry", "LS Arch"]);
 
 /** Row background per station (public view) — plain white for a clean read */
 const STATION_PASTEL: Record<string, string> = Object.fromEntries(
@@ -384,12 +388,17 @@ const normBreakTables = (b: unknown): HyroxBreakTable[] => {
 
 const normTactic = (t: HyroxTactic): HyroxTactic => ({
   ...t,
-  shifts: (t.shifts || []).map((sh) =>
-    sh.map((st) => ({
+  shifts: (t.shifts || []).map((sh) => {
+    const rows = sh.map((st) => ({
       ...st,
       breaks: normBreaks(st.breaks as unknown as string | BreakRange[]),
-    }))
-  ),
+    }));
+    // append any fixed stations added after this tactic was saved (e.g. "LS Arch")
+    for (const s of HYROX_STATIONS) {
+      if (!rows.some((r) => r.station === s)) rows.push(blankStation(s));
+    }
+    return rows;
+  }),
   breaks: normBreakTables(t.breaks),
 });
 
@@ -577,7 +586,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                   <tr key={st.station}>
                     <td className="px-4 py-1.5 font-medium text-slate-700">{st.station}</td>
                     <td className="px-2 py-1.5">
-                      {st.station === "Farmers Carry" ? (
+                      {EXTERNAL_STATIONS.has(st.station) ? (
                         /* External crew — chips + inline +LS */
                         <div className="flex flex-wrap items-center gap-1">
                           <NameCell
@@ -609,6 +618,9 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                       )}
                     </td>
                     <td className="px-2 py-1.5">
+                      {EXTERNAL_STATIONS.has(st.station) ? (
+                        <span className="text-xs text-slate-300">—</span>
+                      ) : (
                       <div className="space-y-1">
                         {normBreaks(st.breaks as unknown as string | BreakRange[]).map((br, bi) => (
                           <div key={bi} className="flex items-center gap-1">
@@ -660,14 +672,19 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                           <Plus size={12} /> break
                         </button>
                       </div>
+                      )}
                     </td>
                     <td className="px-2 py-1.5">
-                      <NameCell
-                        values={st.cover}
-                        onDropName={(n) => addName(si, sti, "cover", n)}
-                        onRemove={(n) => removeName(si, sti, "cover", n)}
-                        chipClass={(v) => (teamTags.has(v) ? "bg-blue-600" : "bg-amber-400 !text-slate-900")}
-                      />
+                      {EXTERNAL_STATIONS.has(st.station) ? (
+                        <span className="text-xs text-slate-300">—</span>
+                      ) : (
+                        <NameCell
+                          values={st.cover}
+                          onDropName={(n) => addName(si, sti, "cover", n)}
+                          onRemove={(n) => removeName(si, sti, "cover", n)}
+                          chipClass={(v) => (teamTags.has(v) ? "bg-blue-600" : "bg-amber-400 !text-slate-900")}
+                        />
+                      )}
                     </td>
                   </tr>
                 ))}

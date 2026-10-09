@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   CalendarDays,
   Library,
-  Users,
   UserCog,
   FolderOpen,
   Settings,
@@ -24,7 +23,6 @@ const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/events", label: "Events", icon: CalendarDays },
   { href: "/bookshelf", label: "Bookshelf", icon: Library },
-  { href: "/photographers", label: "Photographers", icon: Users },
   { href: "/files", label: "Files", icon: FolderOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

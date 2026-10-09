@@ -87,13 +87,16 @@ export default function OverviewTab({
       filled: (event.tactic || []).length > 0,
       summary: `${(event.tactic || []).length} spots`,
     },
-    {
-      id: "course",
-      label: "Course & Positions",
-      icon: <Route size={16} />,
-      filled: !!event.course || event.positions.length > 0,
-      summary: `${event.positions.length} positions${event.course ? ` · ${event.course.legs.length} course legs` : " · no GPX"}`,
-    },
+    // HYROX / Fitness Indoor have no course map — skip the card entirely
+    ...(!/hyrox|fitness\s*indoor/i.test(event.type)
+      ? [{
+          id: "course" as const,
+          label: "Course & Positions",
+          icon: <Route size={16} />,
+          filled: !!event.course || event.positions.length > 0,
+          summary: `${event.positions.length} positions${event.course ? ` · ${event.course.legs.length} course legs` : " · no GPX"}`,
+        }]
+      : []),
     {
       id: "checklist",
       label: "Checklist",
@@ -101,13 +104,15 @@ export default function OverviewTab({
       filled: event.checklist.length > 0,
       summary: `${event.checklist.reduce((n, g) => n + g.items.filter((i) => i.done).length, 0)}/${event.checklist.reduce((n, g) => n + g.items.length, 0)} done`,
     },
-    {
-      id: "tactic",
-      label: "Notes",
-      icon: <ClipboardList size={16} />,
-      filled: !!event.notes,
-      summary: event.notes ? "General notes added" : "Empty",
-    },
+    ...(!/hyrox|fitness\s*indoor/i.test(event.type)
+      ? [{
+          id: "tactic" as const,
+          label: "Notes",
+          icon: <ClipboardList size={16} />,
+          filled: !!event.notes,
+          summary: event.notes ? "General notes added" : "Empty",
+        }]
+      : []),
   ];
 
   return (
