@@ -22,8 +22,9 @@ export const HYROX_STATIONS = [
   "LS Arch",
 ];
 
-/** External-crew stations — photographer chips come from +LS free-text input, no breaks */
-const EXTERNAL_STATIONS = new Set(["Farmers Carry", "LS Arch"]);
+/** External-crew stations — photographer chips are LS crew, no breaks/cover.
+    Tolerant match: saved station names may differ in case/spacing/apostrophes */
+const isExternal = (s: string) => /farmers?['\u2019]?\s*carry/i.test(s) || /ls\s*arch/i.test(s);
 
 /** Row background per station (public view) — plain white for a clean read */
 const STATION_PASTEL: Record<string, string> = Object.fromEntries(
@@ -158,7 +159,7 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                       {st.photographers.length || (st.ls || []).length ? (
                         <div className="flex flex-wrap gap-1">
                           {st.photographers.map((p, i) => (
-                            <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(p, "bg-green-600"))}>{teamSet.has(p) ? p : `${p} LS`}</span>
+                            <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", isExternal(st.station) ? "bg-amber-400 text-slate-900" : chip(p, "bg-green-600"))}>{isExternal(st.station) || !teamSet.has(p) ? `${p} LS` : p}</span>
                           ))}
                           {(st.ls || []).map((p, i) => (
                             <span key={`ls-${i}`} className="inline-flex h-5 items-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-slate-900">{p} LS</span>
@@ -196,7 +197,9 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                   {st.photographers.length || (st.ls || []).length
                     ? <>
                         {st.photographers.map((p, i) => (
-                          <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(p, "bg-green-600"))}>{teamSet.has(p) ? p : `${p} LS`}</span>
+                          <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", isExternal(st.station) ? "bg-amber-400 text-slate-900" : chip(p, "bg-green-600"))}>
+                            {isExternal(st.station) || !teamSet.has(p) ? `${p} LS` : p}
+                          </span>
                         ))}
                         {(st.ls || []).map((p, i) => (
                           <span key={`ls-${i}`} className="inline-flex h-5 items-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-slate-900">{p} LS</span>
@@ -568,7 +571,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                   <tr key={st.station}>
                     <td className="px-4 py-1.5 font-medium text-slate-700">{st.station}</td>
                     <td className="px-2 py-1.5">
-                      {EXTERNAL_STATIONS.has(st.station) ? (
+                      {isExternal(st.station) ? (
                         /* External crew — whole cell is an LS drop zone; assigned members allowed */
                         <NameCell
                           values={st.photographers}
@@ -612,7 +615,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                       )}
                     </td>
                     <td className="px-2 py-1.5">
-                      {EXTERNAL_STATIONS.has(st.station) ? (
+                      {isExternal(st.station) ? (
                         <span className="text-xs text-slate-300">—</span>
                       ) : (
                       <div className="space-y-1">
@@ -669,7 +672,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                       )}
                     </td>
                     <td className="px-2 py-1.5">
-                      {EXTERNAL_STATIONS.has(st.station) ? (
+                      {isExternal(st.station) ? (
                         <span className="text-xs text-slate-300">—</span>
                       ) : (
                         <NameCell
