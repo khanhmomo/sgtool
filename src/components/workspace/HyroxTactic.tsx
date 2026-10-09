@@ -285,33 +285,44 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
               <div key={st.station} className={cn("rounded-md border border-slate-900 p-2.5 text-slate-900", STATION_PASTEL[st.station] || "bg-slate-50")}>
                 <p className="mb-1 text-xs font-black uppercase tracking-wide">{st.station}</p>
                 {st.note && <div className="mb-1 text-[10px] font-normal text-slate-600"><Markdown text={st.note} /></div>}
-                <div className="flex flex-wrap items-center gap-1">
-                  {st.photographers.length || (st.ls || []).length
-                    ? <>
-                        {st.photographers.map((p, i) => (
-                          <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", isExternal(st.station) ? "bg-amber-400 text-slate-900" : chip(p, "bg-green-600"))}>
-                            {isExternal(st.station) || !teamSet.has(p) ? `${p} LS` : p}
-                          </span>
-                        ))}
-                        {(st.ls || []).map((p, i) => (
-                          <span key={`ls-${i}`} className="inline-flex h-5 items-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-slate-900">{p} LS</span>
+                <div className="grid grid-cols-[1fr_1fr_auto] gap-x-2">
+                  {/* Col 1: photographers / LS */}
+                  <div className="flex flex-wrap items-start gap-1">
+                    {st.photographers.length || (st.ls || []).length
+                      ? <>
+                          {st.photographers.map((p, i) => (
+                            <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", isExternal(st.station) ? "bg-amber-400 text-slate-900" : chip(p, "bg-green-600"))}>
+                              {isExternal(st.station) || !teamSet.has(p) ? `${p} LS` : p}
+                            </span>
+                          ))}
+                          {(st.ls || []).map((p, i) => (
+                            <span key={`ls-${i}`} className="inline-flex h-5 items-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-slate-900">{p} LS</span>
+                          ))}
+                        </>
+                      : <span className="text-[11px] opacity-40">—</span>}
+                  </div>
+                  {/* Col 2: cover — spans into col 3 when no breaks */}
+                  <div className="flex flex-wrap items-start gap-1">
+                    {st.cover.length > 0 && (
+                      <>
+                        <span className="text-[9px] font-bold uppercase tracking-wider opacity-60">Cover</span>
+                        {st.cover.map((c, i) => (
+                          <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(c, "bg-blue-600"))}>{c}</span>
                         ))}
                       </>
-                    : <span className="text-[11px] opacity-40">—</span>}
+                    )}
+                  </div>
+                  {/* Col 3: break times, one per line */}
                   {(st.breaks || []).length > 0 && (
-                    <span className="ml-auto text-[10px] font-bold opacity-80">
-                      {(st.breaks as HyroxBreakRange[]).map((b) => `${fmtT(b.start)}–${fmtT(b.end)}`).join(" · ")}
-                    </span>
+                    <div className="flex flex-col items-end gap-0.5 border-l border-slate-900/20 pl-2 text-right">
+                      {(st.breaks as HyroxBreakRange[]).map((b, bi) => (
+                        <span key={bi} className="whitespace-nowrap text-[10px] font-bold opacity-80">
+                          {fmtT(b.start)}–{fmtT(b.end)}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
-                {st.cover.length > 0 && (
-                  <div className="mt-1 flex flex-wrap items-center gap-1">
-                    <span className="text-[9px] font-bold uppercase tracking-wider opacity-60">Cover</span>
-                    {st.cover.map((c, i) => (
-                      <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(c, "bg-blue-600"))}>{c}</span>
-                    ))}
-                  </div>
-                )}
               </div>
             ))}
           </div>
