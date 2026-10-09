@@ -476,8 +476,9 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
       if (shift.some((s) => s.photographers.includes(name))) return;
       if (shift[sti].photographers.includes(name)) return;
     } else if (key === "ls") {
+      // LS may reuse team members who are already assigned to a station —
+      // only dedupe within LS lists so the same person isn't LS twice.
       if (shift.some((s) => (s.ls || []).includes(name))) return;
-      if ((shift[sti].ls || []).includes(name)) return;
     } else if (shift[sti].cover.includes(name)) {
       return;
     }
