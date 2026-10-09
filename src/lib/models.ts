@@ -41,6 +41,7 @@ const EventSchema = new Schema(
     hotel: { type: Schema.Types.Mixed, default: {} }, // legacy single hotel — migrated to hotels[]
     hotels: { type: [Schema.Types.Mixed], default: [] },
     bestof: { type: Schema.Types.Mixed, default: null },
+    briefing: { type: String, default: "" },
     transport: { type: [Schema.Types.Mixed], default: [] },
     schedule: { type: [Schema.Types.Mixed], default: [] },
     contacts: { type: [Schema.Types.Mixed], default: [] },

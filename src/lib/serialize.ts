@@ -42,6 +42,7 @@ export function serializeEvent(doc: any): EventDTO {
       e.bestof && Array.isArray(e.bestof.images)
         ? { link: e.bestof.link || "", images: e.bestof.images }
         : null,
+    briefing: e.briefing || "",
     transport: e.transport || [],
     schedule: e.schedule || [],
     contacts: e.contacts || [],

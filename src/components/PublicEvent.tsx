@@ -20,6 +20,7 @@ import {
   Eye,
   Navigation,
   Images,
+  Megaphone,
 } from "lucide-react";
 import { Badge, Card } from "@/components/ui";
 import { STATUS_META, SPORT_META } from "@/lib/design";
@@ -148,6 +149,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   }));
 
   const nav = [
+    { id: "briefing", label: "Briefing", icon: Megaphone, show: !!event.briefing?.trim() },
     { id: "venue", label: "Venue", icon: MapPin, show: !!event.venue.name },
     { id: "calltime", label: "Call time", icon: AlarmClock, show: callTimes.length > 0 },
     { id: "tactic", label: "Tactic", icon: Target, show: (event.tactic || []).length > 0 || (event.hyrox || []).length > 0 },
@@ -262,6 +264,13 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
           </section>
         )}
         </div>
+
+        {/* Briefing */}
+        {event.briefing?.trim() && (
+          <Section id="briefing" icon={<Megaphone size={16} />} title="Briefing" className="lg:col-span-2">
+            <Markdown text={event.briefing} />
+          </Section>
+        )}
 
         {/* Tactic — HYROX station plan or spot assignment table */}
         {(event.hyrox || []).length > 0 ? (

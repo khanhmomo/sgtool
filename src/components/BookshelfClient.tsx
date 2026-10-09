@@ -15,22 +15,17 @@ import {
   Save,
 } from "lucide-react";
 import {
-  Badge,
   Button,
   Card,
   Empty,
   Field,
   Input,
   Notice,
-  Select,
   Textarea,
 } from "@/components/ui";
-import { DOC_CATEGORY_META } from "@/lib/design";
 import { fmtDate } from "@/lib/utils";
 import Markdown from "@/components/Markdown";
 import type { TemplateDTO } from "@/types";
-
-const CATS = ["tactic", "guide", "checklist", "note", "strategy", "other"] as const;
 
 type EditingTpl = TemplateDTO & { __isNew?: boolean };
 
@@ -47,20 +42,14 @@ export default function BookshelfClient({
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [q, setQ] = useState(initialQuery);
-  const [catFilter, setCatFilter] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const visible = templates.filter((t) => {
     if (!showArchived && t.archived) return false;
-    if (catFilter && t.category !== catFilter) return false;
     if (q) {
       const s = q.toLowerCase();
-      return (
-        t.title.toLowerCase().includes(s) ||
-        t.body.toLowerCase().includes(s) ||
-        t.tags.some((tag) => tag.toLowerCase().includes(s))
-      );
+      return t.title.toLowerCase().includes(s) || t.body.toLowerCase().includes(s);
     }
     return true;
   });
@@ -78,8 +67,6 @@ export default function BookshelfClient({
     try {
       const payload = {
         title: editing.title,
-        category: editing.category,
-        tags: editing.tags,
         body: editing.body,
       };
       const res = editing.__isNew
@@ -150,7 +137,7 @@ export default function BookshelfClient({
               id: "",
               ownerId: "",
               title: "",
-              category: "tactic",
+              category: "other",
               tags: [],
               body: "",
               archived: false,
@@ -174,14 +161,6 @@ export default function BookshelfClient({
             className="h-9 w-56 pl-8"
           />
         </div>
-        <Select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="w-44">
-          <option value="">All categories</option>
-          {CATS.map((c) => (
-            <option key={c} value={c}>
-              {DOC_CATEGORY_META[c].label}
-            </option>
-          ))}
-        </Select>
         <label className="flex items-center gap-1.5 text-xs text-slate-500">
           <input
             type="checkbox"
@@ -217,21 +196,13 @@ export default function BookshelfClient({
         <div className="grid gap-3 md:grid-cols-2">
           {visible.map((t) => (
             <Card key={t.id} className={t.archived ? "opacity-60" : ""}>
-              <div className="flex items-center gap-2 px-4 pt-3">
-                <Badge className={DOC_CATEGORY_META[t.category]?.badge}>
-                  {DOC_CATEGORY_META[t.category]?.label}
-                </Badge>
-                {t.tags.map((tag) => (
-                  <span key={tag} className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
-                    {tag}
-                  </span>
-                ))}
-                {t.archived && (
+              {t.archived && (
+                <div className="px-4 pt-3">
                   <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
                     ARCHIVED
                   </span>
-                )}
-              </div>
+                </div>
+              )}
               <button
                 onClick={() => setExpanded(expanded === t.id ? null : t.id)}
                 className="block w-full px-4 pb-2 pt-1 text-left"
@@ -283,38 +254,11 @@ export default function BookshelfClient({
               </button>
             </div>
             <div className="grid gap-4 p-4">
-              <div className="grid gap-4 sm:grid-cols-[1fr_160px]">
-                <Field label="Title">
-                  <Input
-                    value={editing.title}
-                    onChange={(e) => setEditing({ ...editing, title: e.target.value })}
-                    placeholder="IRONMAN Bike Position Guide"
-                  />
-                </Field>
-                <Field label="Category">
-                  <Select
-                    value={editing.category}
-                    onChange={(e) =>
-                      setEditing({ ...editing, category: e.target.value as EditingTpl["category"] })
-                    }
-                  >
-                    {CATS.map((c) => (
-                      <option key={c} value={c}>
-                        {DOC_CATEGORY_META[c].label}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-              </div>
-              <Field label="Tags" hint="Comma separated, e.g. ironman, bike, night">
+              <Field label="Title">
                 <Input
-                  value={editing.tags.join(", ")}
-                  onChange={(e) =>
-                    setEditing({
-                      ...editing,
-                      tags: e.target.value.split(",").map((s) => s.trim()).filter(Boolean),
-                    })
-                  }
+                  value={editing.title}
+                  onChange={(e) => setEditing({ ...editing, title: e.target.value })}
+                  placeholder="Race-day briefing"
                 />
               </Field>
               <Field

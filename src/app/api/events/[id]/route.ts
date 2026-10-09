@@ -9,7 +9,7 @@ const PATCHABLE = new Set([
   "name", "type", "date", "endDate", "location", "country", "organizer", "website",
   "status", "venue", "hotels", "transport", "schedule", "contacts", "photographers",
   "positions", "preSpots", "tactic", "course", "documents", "checklist", "notes",
-  "hyrox",
+  "hyrox", "briefing",
 ]);
 
 type Ctx = { params: Promise<{ id: string }> };

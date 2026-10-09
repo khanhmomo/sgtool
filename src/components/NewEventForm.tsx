@@ -3,19 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, CardHeader, Field, Input, Notice, Select } from "@/components/ui";
-import { DOC_CATEGORY_META } from "@/lib/design";
-import type { TemplateDTO } from "@/types";
 
 const EVENT_TYPES = [
   "IRONMAN", "IRONMAN 70.3", "Obstacle Race", "Marathon", "Trail Run", "HYROX",
   "Fitness Indoor", "Bike Race",
 ];
 
-export default function NewEventForm({ templates }: { templates: TemplateDTO[] }) {
+export default function NewEventForm() {
   const router = useRouter();
   const [form, setForm] = useState({
     name: "", type: "IRONMAN 70.3", date: "", endDate: "",
-    location: "", country: "", organizer: "", website: "", bestofUrl: "", templateId: "",
+    location: "", country: "", organizer: "", website: "", bestofUrl: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -32,7 +30,7 @@ export default function NewEventForm({ templates }: { templates: TemplateDTO[] }
       const res = await fetch("/api/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, templateId: form.templateId || undefined }),
+        body: JSON.stringify(form),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -95,24 +93,6 @@ export default function NewEventForm({ templates }: { templates: TemplateDTO[] }
               placeholder="https://www.sportograf.com/en/event/26335"
             />
           </Field>
-        </div>
-      </Card>
-
-      <Card>
-        <CardHeader title="Start from template" />
-        <div className="p-4">
-          <Select value={form.templateId} onChange={set("templateId")}>
-            <option value="">Create from scratch</option>
-            {templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {DOC_CATEGORY_META[t.category]?.label || "Template"} — {t.title}
-              </option>
-            ))}
-          </Select>
-          <p className="mt-2 text-xs text-slate-500">
-            The selected template is copied into the event — later edits to the template won&apos;t
-            change this event.
-          </p>
         </div>
       </Card>
 

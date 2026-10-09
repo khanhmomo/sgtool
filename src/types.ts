@@ -223,6 +223,7 @@ export interface EventDTO {
   venue: VenueInfo;
   hotels: HotelInfo[];
   bestof: BestofInfo | null;
+  briefing: string;
   transport: Transport[];
   schedule: ScheduleItem[];
   contacts: Contact[];

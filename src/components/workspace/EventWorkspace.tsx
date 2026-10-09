@@ -11,10 +11,12 @@ import {
   FolderOpen,
   CheckSquare,
   Settings,
+  Megaphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EventDTO, FileDTO } from "@/types";
 import OverviewTab from "./OverviewTab";
+import BriefingTab from "./BriefingTab";
 import InfoTab from "./InfoTab";
 import TeamTab from "./TeamTab";
 import TacticTab from "./TacticTab";
@@ -25,6 +27,7 @@ import SettingsTab from "./SettingsTab";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "briefing", label: "Briefing", icon: Megaphone },
   { id: "info", label: "Information", icon: Building2 },
   { id: "team", label: "Team", icon: Users },
   { id: "tactic", label: "Tactic", icon: Target },
@@ -127,6 +130,7 @@ export default function EventWorkspace({
       </div>
 
       {tab === "overview" && <OverviewTab {...props} goTab={setTab} />}
+      {tab === "briefing" && <BriefingTab {...props} />}
       {tab === "info" && <InfoTab {...props} />}
       {tab === "team" && <TeamTab {...props} />}
       {tab === "tactic" && <TacticTab {...props} />}
