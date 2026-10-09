@@ -103,9 +103,11 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   const [tacticSort, setTacticSort] = useState<"order" | "spot" | "photographer" | "arrival">("order");
   const [tacticFilter, setTacticFilter] = useState("");
   const [hyroxDay, setHyroxDay] = useState(0);
+  const [tacticDay, setTacticDay] = useState(0);
   const images = files.filter((f) => isImageMime(f.mime));
   const st = STATUS_META[event.status] || STATUS_META.planning;
   const legs = event.course?.legs || [];
+  const isFitnessIndoor = /fitness\s*indoor/i.test(event.type);
 
   // morning call-time entries: schedule items titled e.g. "Call time", "Meet at…"
   const callTimes = event.schedule.filter((s) => /call|meet|brief/i.test(s.title));
@@ -120,8 +122,21 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
     return h * 60 + +m[2];
   };
 
-  const sortedTactic = [...(event.tactic || [])]
-    .filter((r) => !tacticFilter || r.photographer === tacticFilter)
+  // Multi-day events keep one tactic table per day (tacticDays); legacy single-day uses tactic
+  const tacticRows =
+    (event.tacticDays || []).length > 0
+      ? (event.tacticDays[tacticDay] || event.tacticDays[0]).rows
+      : event.tactic || [];
+
+  const sortedTactic = [...tacticRows]
+    .filter(
+      (r) =>
+        !tacticFilter ||
+        r.photographer
+          .split(",")
+          .map((s) => s.trim())
+          .includes(tacticFilter)
+    )
     .sort((a, b) => {
       if (tacticSort === "spot") return (a.spot || "").localeCompare(b.spot || "");
       if (tacticSort === "photographer") {
@@ -299,8 +314,26 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
               callTime={(event.hyrox[hyroxDay] || event.hyrox[0]).callTime}
             />
           </Section>
-        ) : (event.tactic || []).length > 0 && (
+        ) : ((event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0)) && (
           <Section id="tactic" icon={<Target size={16} />} title="Tactic">
+            {(event.tacticDays || []).length > 1 && (
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {event.tacticDays.map((d, i) => (
+                  <button
+                    key={d.date || i}
+                    onClick={() => setTacticDay(i)}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+                      i === tacticDay
+                        ? "bg-slate-900 text-white"
+                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                    )}
+                  >
+                    {d.date ? fmtDate(d.date) : `Day ${i + 1}`}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="mb-2 flex items-center justify-end gap-3">
               <select
                 value={tacticFilter}
@@ -323,7 +356,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                 <option value="order">Race order</option>
                 <option value="spot">Spot name</option>
                 <option value="photographer">Photographer</option>
-                <option value="arrival">Arrival time</option>
+                {!isFitnessIndoor && <option value="arrival">Arrival time</option>}
               </select>
             </div>
             <div className="overflow-x-auto rounded-md border border-slate-200">
@@ -332,15 +365,19 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                   <tr className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
                     <th className="px-3 py-2">Spot</th>
                     <th className="px-3 py-2">Photographer</th>
+                    {isFitnessIndoor && <th className="px-3 py-2">LS</th>}
                     <th className="px-3 py-2">Lens</th>
-                    <th className="px-3 py-2">Arrival</th>
-                    <th className="px-3 py-2">Location</th>
+                    {!isFitnessIndoor && <th className="px-3 py-2">Arrival</th>}
+                    {!isFitnessIndoor && <th className="px-3 py-2">Location</th>}
                     <th className="px-3 py-2">Note</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedTactic.map((r) => {
-                    const mate = event.photographers.find((p) => p.acronym === r.photographer);
+                    const acrs = r.photographer.split(",").map((s) => s.trim()).filter(Boolean);
+                    const mates = acrs
+                      .map((a) => ({ a, p: event.photographers.find((x) => x.acronym === a) }))
+                      .filter((m) => m.a);
                     // Fall back to the matching course spot when the row has no stored link
                     const pos = (event.positions || []).find(
                       (p) => p.lat !== null && p.lng !== null && (p.photographer || p.id) === r.spot
@@ -354,37 +391,63 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                       >
                         <td className="px-3 py-2 font-bold text-slate-900">{r.spot}</td>
                         <td className="px-3 py-2">
-                          {r.photographer ? (
-                            <>
-                              <span className="inline-flex h-5 min-w-10 items-center justify-center rounded bg-slate-900 px-1.5 text-[11px] font-bold text-white">
-                                {r.photographer}
-                              </span>
-                              {mate?.name && (
-                                <span className="ml-1.5 whitespace-nowrap font-bold text-slate-900">{mate.name}</span>
-                              )}
-                            </>
+                          {mates.length ? (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {mates.map(({ a, p }) => (
+                                <span key={a} className="inline-flex items-center">
+                                  <span className="inline-flex h-5 min-w-10 items-center justify-center rounded bg-slate-900 px-1.5 text-[11px] font-bold text-white">
+                                    {a}
+                                  </span>
+                                  {p?.name && (
+                                    <span className="ml-1 whitespace-nowrap font-bold text-slate-900">{p.name}</span>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
                           ) : (
                             <span className="text-slate-400">—</span>
                           )}
                         </td>
+                        {isFitnessIndoor && (
+                          <td className="px-3 py-2">
+                            {(r.ls || "").split(",").map((s) => s.trim()).filter(Boolean).length ? (
+                              <div className="flex flex-wrap items-center gap-1">
+                                {(r.ls || "").split(",").map((s) => s.trim()).filter(Boolean).map((a) => (
+                                  <span
+                                    key={a}
+                                    className="inline-flex h-5 min-w-8 items-center justify-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-amber-950"
+                                  >
+                                    {a}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                        )}
                         <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900">{r.lens || "—"}</td>
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900">
-                          {r.arrival || "—"}
-                        </td>
-                        <td className="px-3 py-2">
-                          {link ? (
-                            <a
-                              href={link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-[11px] font-bold text-white hover:bg-slate-700"
-                            >
-                              <Navigation size={11} /> Maps
-                            </a>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
+                        {!isFitnessIndoor && (
+                          <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900">
+                            {r.arrival || "—"}
+                          </td>
+                        )}
+                        {!isFitnessIndoor && (
+                          <td className="px-3 py-2">
+                            {link ? (
+                              <a
+                                href={link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-[11px] font-bold text-white hover:bg-slate-700"
+                              >
+                                <Navigation size={11} /> Maps
+                              </a>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                        )}
                         <td className="px-3 py-2 text-slate-900">{r.note || "—"}</td>
                       </tr>
                     );

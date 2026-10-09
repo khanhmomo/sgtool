@@ -181,6 +181,7 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
           mapLink: clean.mapLink || "",
           note: "",
           color: "",
+          ls: "",
         },
       ];
       await patch({ positions: nextPositions, preSpots: nextPre, tactic });
@@ -345,6 +346,7 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
           mapLink: clean.mapLink || (clean.lat != null && clean.lng != null ? googleMapsUrl(clean.lat, clean.lng) : ""),
           note: "",
           color: "",
+          ls: "",
         },
       ];
       setPositions(next);

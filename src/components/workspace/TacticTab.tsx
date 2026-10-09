@@ -12,7 +12,7 @@ import {
   AlarmClock,
 } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input, Select, Textarea, Notice } from "@/components/ui";
-import { uid, googleMapsUrl } from "@/lib/utils";
+import { uid, googleMapsUrl, fmtDate } from "@/lib/utils";
 import type { TacticRow } from "@/types";
 import type { TabProps } from "./EventWorkspace";
 import HyroxTactic from "./HyroxTactic";
@@ -72,6 +72,7 @@ function ironmanSkeleton(): TacticRow[] {
     mapLink: "",
     note: "",
     color: "",
+    ls: "",
   }));
 }
 
@@ -91,6 +92,7 @@ function fitnessIndoorSkeleton(): TacticRow[] {
     mapLink: "",
     note: "",
     color: "",
+    ls: "",
   }));
 }
 
@@ -103,12 +105,58 @@ const newRow = (spot = ""): TacticRow => ({
   mapLink: "",
   note: "",
   color: "",
+  ls: "",
 });
 
+/** Inclusive YYYY-MM-DD date list from start → end (capped at 30 days). */
+function dateRange(start: string, end: string): string[] {
+  const out: string[] = [];
+  if (!start) return out;
+  const d = new Date(start + "T00:00:00");
+  const stop = end ? new Date(end + "T00:00:00") : d;
+  while (d <= stop && out.length < 30) {
+    out.push(d.toISOString().slice(0, 10));
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
 export default function TacticTab({ event, patch, setEvent, saving }: TabProps) {
-  const [rows, setRows] = useState<TacticRow[]>(event.tactic || []);
+  const isIronman = /ironman|triathlon/i.test(event.type);
+  const isFitnessIndoor = /fitness\s*indoor/i.test(event.type);
+
+  // Fitness Indoor: one tactic table per event day (tacticDays). Legacy events
+  // stored in `tactic` seed day 1 on first open.
+  const [days, setDays] = useState<{ date: string; rows: TacticRow[] }[]>(() => {
+    if (!isFitnessIndoor) return [];
+    const saved = event.tacticDays || [];
+    const dates = new Set([
+      ...dateRange(event.date, event.endDate),
+      ...saved.map((d) => d.date).filter(Boolean),
+    ]);
+    const sorted = [...dates].sort();
+    return (sorted.length ? sorted : [""]).map((date, i) => ({
+      date,
+      rows:
+        saved.find((d) => d.date === date)?.rows ??
+        (i === 0 && !saved.length ? event.tactic || [] : []),
+    }));
+  });
+  const [activeDate, setActiveDate] = useState(() => days[0]?.date ?? "");
+  const [rowsState, setRowsState] = useState<TacticRow[]>(event.tactic || []);
   const [notes, setNotes] = useState(event.notes || "");
   const [dirty, setDirty] = useState(false);
+
+  const rows = isFitnessIndoor
+    ? (days.find((d) => d.date === activeDate)?.rows ?? [])
+    : rowsState;
+  const setRows = (fn: (rs: TacticRow[]) => TacticRow[]) => {
+    if (isFitnessIndoor) {
+      setDays((ds) => ds.map((d) => (d.date === activeDate ? { ...d, rows: fn(d.rows) } : d)));
+    } else {
+      setRowsState(fn);
+    }
+  };
   // rows whose spot cell shows a free-form input instead of the position dropdown
   const [customLinkRows, setCustomLinkRows] = useState<Set<string>>(new Set());
   const [openColorRow, setOpenColorRow] = useState<string | null>(null);
@@ -141,14 +189,11 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
   }
 
   function generate() {
-    const existing = rows.length ? [...rows] : [];
-    setRows([...existing, ...(isFitnessIndoor ? fitnessIndoorSkeleton() : ironmanSkeleton())]);
+    setRows((rs) => [...rs, ...(isFitnessIndoor ? fitnessIndoorSkeleton() : ironmanSkeleton())]);
     setDirty(true);
   }
 
   const unassigned = rows.filter((r) => !r.photographer).length;
-  const isIronman = /ironman|triathlon/i.test(event.type);
-  const isFitnessIndoor = /fitness\s*indoor/i.test(event.type);
 
   // HYROX uses a completely different tactic layout (stations / shifts / switches / breaks)
   if (/hyrox/i.test(event.type)) {
@@ -159,7 +204,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
     <div className="mx-auto max-w-6xl space-y-4">
       <Card>
         <CardHeader
-          title={`Race tactic (${rows.length} spots)`}
+          title={isFitnessIndoor && activeDate ? `Tactic — ${fmtDate(activeDate)} (${rows.length} spots)` : `Race tactic (${rows.length} spots)`}
           icon={<ClipboardList size={15} className="text-blue-600" />}
           action={
             <div className="flex items-center gap-2">
@@ -181,7 +226,13 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                 variant="accent"
                 loading={saving}
                 disabled={!dirty}
-                onClick={() => patch({ tactic: rows }).then((ok) => ok && setDirty(false))}
+                onClick={() =>
+                  patch(
+                    isFitnessIndoor
+                      ? { tacticDays: days.filter((d) => d.rows.length) }
+                      : { tactic: rows }
+                  ).then((ok) => ok && setDirty(false))
+                }
               >
                 Save
               </Button>
@@ -198,6 +249,24 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
             <Notice kind="info" className="mb-3">
               {unassigned} spot{unassigned === 1 ? "" : "s"} still unassigned.
             </Notice>
+          )}
+
+          {isFitnessIndoor && days.length > 1 && (
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              {days.map((d) => (
+                <button
+                  key={d.date || "day"}
+                  onClick={() => setActiveDate(d.date)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    d.date === activeDate
+                      ? "bg-slate-900 text-white"
+                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  {d.date ? fmtDate(d.date) : "Unscheduled"}
+                </button>
+              ))}
+            </div>
           )}
 
           {rows.length === 0 ? (
@@ -232,17 +301,19 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                     <th className="px-2 py-2 w-12">Color</th>
                     <th className="px-3 py-2">Spot</th>
                     <th className="px-3 py-2">Photographer</th>
+                    {isFitnessIndoor && <th className="px-3 py-2 w-16">LS</th>}
                     <th className="px-3 py-2">Camera lens</th>
-                    <th className="px-3 py-2">Arrival</th>
+                    {!isFitnessIndoor && <th className="px-3 py-2">Arrival</th>}
                     <th className="px-3 py-2">Note</th>
                     <th className="px-2 py-2 w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r) => {
-                    const mate = event.photographers.find(
-                      (p) => p.acronym === r.photographer
-                    );
+                    const acrs = r.photographer.split(",").map((s) => s.trim()).filter(Boolean);
+                    const mate = acrs.every((a) =>
+                      event.photographers.some((p) => p.acronym === a)
+                    ) || acrs.length === 0;
                     return (
                       <tr
                         key={r.id}
@@ -394,6 +465,64 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                             </p>
                           )}
                         </td>
+                        {isFitnessIndoor && (
+                          <td className="px-3 py-2">
+                            {(() => {
+                              const selected = (r.ls || "").split(",").map((s) => s.trim()).filter(Boolean);
+                              const key = `ls-${r.id}`;
+                              return (
+                                <div className="relative">
+                                  <button
+                                    type="button"
+                                    onClick={() => setOpenColorRow((o) => (o === key ? null : key))}
+                                    className="flex h-8 min-w-16 items-center truncate rounded-md border border-slate-300 bg-white px-2 text-xs outline-none focus:border-blue-500"
+                                  >
+                                    <span className="truncate">
+                                      {selected.length ? selected.join(", ") : "+ LS"}
+                                    </span>
+                                  </button>
+                                  {openColorRow === key && (
+                                    <>
+                                      <button
+                                        aria-label="Close"
+                                        onClick={() => setOpenColorRow(null)}
+                                        className="fixed inset-0 z-10 cursor-default"
+                                      />
+                                      <div className="absolute left-0 top-9 z-20 max-h-52 w-52 overflow-y-auto rounded-md border border-slate-200 bg-white p-1.5 shadow-lg">
+                                        <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                          LS crew for this spot
+                                        </p>
+                                        {event.photographers.map((p) => {
+                                          const on = selected.includes(p.acronym);
+                                          return (
+                                            <label
+                                              key={p.id}
+                                              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-slate-50"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={on}
+                                                onChange={() => {
+                                                  const next = on
+                                                    ? selected.filter((a) => a !== p.acronym)
+                                                    : [...selected, p.acronym];
+                                                  update(r.id, "ls", next.join(", "));
+                                                }}
+                                                className="h-3.5 w-3.5 accent-blue-600"
+                                              />
+                                              <span className="font-bold">{p.acronym}</span>
+                                              <span className="truncate text-slate-500">{p.name}</span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+                        )}
                         <td className="px-3 py-2">
                           <Select
                             value={r.lens}
@@ -406,14 +535,16 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                             ))}
                           </Select>
                         </td>
-                        <td className="px-3 py-2">
-                          <Input
-                            type="time"
-                            value={to24(r.arrival)}
-                            onChange={(e) => update(r.id, "arrival", from24(e.target.value))}
-                            className="h-8 w-28 px-2 text-xs"
-                          />
-                        </td>
+                        {!isFitnessIndoor && (
+                          <td className="px-3 py-2">
+                            <Input
+                              type="time"
+                              value={to24(r.arrival)}
+                              onChange={(e) => update(r.id, "arrival", from24(e.target.value))}
+                              className="h-8 w-28 px-2 text-xs"
+                            />
+                          </td>
+                        )}
                         <td className="px-3 py-2">
                           <Input
                             value={r.note}

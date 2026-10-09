@@ -109,12 +109,19 @@ export interface PreSpot {
 export interface TacticRow {
   id: string;
   spot: string; // e.g. "Swim In", "Bike 1", "Finish Line"
-  photographer: string; // acronym from event.photographers
+  photographer: string; // acronym(s) from event.photographers, comma-separated
+  ls: string; // light-system crew assigned to this spot — comma-separated acronyms
   lens: string; // preferred camera lens, e.g. "70-200"
   arrival: string; // e.g. "7:00 AM"
   mapLink: string; // GPS / map location link
   note: string; // e.g. "Setup LS if available…"
   color: string; // row background color, hex e.g. "#fef3c7"
+}
+
+/** One event day with its own spot-assignment tactic (multi-day events) */
+export interface TacticDay {
+  date: string; // YYYY-MM-DD
+  rows: TacticRow[];
 }
 
 export interface CoursePoint {
@@ -231,6 +238,7 @@ export interface EventDTO {
   positions: Position[];
   preSpots: PreSpot[];
   tactic: TacticRow[];
+  tacticDays: TacticDay[];
   hyrox: HyroxDayPlan[];
   course: Course | null;
   documents: EventDoc[];
