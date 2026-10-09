@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, KeyRound, Power, UserCog, Trash2, Pencil, Save, X } from "lucide-react";
+import { Plus, KeyRound, Power, UserCog, Trash2, Pencil, Save, X, Search } from "lucide-react";
 import { Button, Card, CardHeader, Field, Input, Notice, Badge } from "@/components/ui";
 import { cn, fmtDate } from "@/lib/utils";
 import type { UserDTO } from "@/types";
@@ -17,6 +17,8 @@ export default function AccountsClient({ meId }: { meId: string }) {
   const [acronym, setAcronym] = useState("");
   const [email, setEmail] = useState("");
   const [creating, setCreating] = useState(false);
+
+  const [query, setQuery] = useState("");
 
   // per-row reset form
   const [resetId, setResetId] = useState("");
@@ -141,9 +143,32 @@ export default function AccountsClient({ meId }: { meId: string }) {
       {notice && <Notice kind="ok">{notice}</Notice>}
 
       <Card>
-        <CardHeader title="Team Leaders" icon={<UserCog size={15} className="text-blue-600" />} />
+        <CardHeader
+          title="Team Leaders"
+          icon={<UserCog size={15} className="text-blue-600" />}
+          action={
+            <div className="relative">
+              <Search size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Find name or acronym"
+                className="h-8 w-52 pl-7 text-xs"
+              />
+            </div>
+          }
+        />
         <div className="divide-y divide-slate-100">
-          {(users || []).map((u) => (
+          {(users || [])
+            .filter((u) => {
+              const q = query.trim().toLowerCase();
+              return (
+                !q ||
+                u.name.toLowerCase().includes(q) ||
+                u.acronym.toLowerCase().includes(q)
+              );
+            })
+            .map((u) => (
             <div key={u.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
               {u.image ? (
                 // eslint-disable-next-line @next/next/no-img-element -- user-uploaded/blob URL

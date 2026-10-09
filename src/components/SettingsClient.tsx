@@ -6,7 +6,7 @@ import { Button, Card, CardHeader, Field, Input, Notice } from "@/components/ui"
 import type { UserDTO } from "@/types";
 
 export default function SettingsClient({ user }: { user: UserDTO }) {
-  const [form, setForm] = useState({ name: user.name, image: user.image });
+  const [form, setForm] = useState({ name: user.name, acronym: user.acronym, image: user.image });
   const [avatarBusy, setAvatarBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
@@ -70,8 +70,20 @@ export default function SettingsClient({ user }: { user: UserDTO }) {
         <Field label="Full name">
           <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </Field>
-        <Field label="Acronym" hint="Assigned by your admin — used for position IDs">
-          <Input value={user.acronym} disabled className="bg-slate-50 text-slate-400 uppercase" />
+        <Field
+          label="Acronym"
+          hint={user.role === "admin" ? "Used for position IDs" : "Assigned by your admin — used for position IDs"}
+        >
+          {user.role === "admin" ? (
+            <Input
+              value={form.acronym}
+              onChange={(e) => setForm({ ...form, acronym: e.target.value.toUpperCase() })}
+              className="uppercase"
+              maxLength={6}
+            />
+          ) : (
+            <Input value={user.acronym} disabled className="bg-slate-50 text-slate-400 uppercase" />
+          )}
         </Field>
         <Field label="Email" hint="Assigned by your admin — contact them to change it">
           <Input value={user.email} disabled className="bg-slate-50 text-slate-400" />
