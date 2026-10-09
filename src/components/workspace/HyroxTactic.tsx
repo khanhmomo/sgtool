@@ -42,6 +42,7 @@ const normBreaks = (b: string | BreakRange[]): BreakRange[] =>
 const blankStation = (station: string): HyroxStationPlan => ({
   station,
   photographers: [],
+  ls: [],
   breaks: [],
   cover: [],
 });
@@ -96,41 +97,6 @@ function NameCell({
       ))}
       {values.length === 0 && droppable && <span className="text-[11px] text-slate-300">drop here</span>}
     </div>
-  );
-}
-
-/** "+ LS" button → expands into a text input for external photographer names */
-function LsInput({ onAdd, placeholder }: { onAdd: (name: string) => void; placeholder?: string }) {
-  const [open, setOpen] = useState(false);
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium text-slate-400 hover:bg-amber-50 hover:text-amber-700"
-      >
-        <Plus size={11} /> LS
-      </button>
-    );
-  }
-  return (
-    <Input
-      autoFocus
-      className="mt-1 h-6 w-full text-[11px]"
-      placeholder={placeholder || "External name"}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          const v = (e.target as HTMLInputElement).value.trim();
-          if (v) onAdd(v);
-          (e.target as HTMLInputElement).value = "";
-        }
-        if (e.key === "Escape") setOpen(false);
-      }}
-      onBlur={(e) => {
-        const v = e.target.value.trim();
-        if (v) onAdd(v);
-        setOpen(false);
-      }}
-    />
   );
 }
 
@@ -189,10 +155,13 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                   >
                     <td className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">{st.station}</td>
                     <td className="border border-slate-900 px-3 py-2">
-                      {st.photographers.length ? (
+                      {st.photographers.length || (st.ls || []).length ? (
                         <div className="flex flex-wrap gap-1">
                           {st.photographers.map((p, i) => (
                             <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(p, "bg-green-600"))}>{p}</span>
+                          ))}
+                          {(st.ls || []).map((p, i) => (
+                            <span key={`ls-${i}`} className="inline-flex h-5 items-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-slate-900">{p}</span>
                           ))}
                         </div>
                       ) : <span className="opacity-40">—</span>}
@@ -224,10 +193,15 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
               <div key={st.station} className={cn("rounded-md border border-slate-900 p-2.5 text-slate-900", STATION_PASTEL[st.station] || "bg-slate-50")}>
                 <p className="mb-1 text-xs font-black uppercase tracking-wide">{st.station}</p>
                 <div className="flex flex-wrap items-center gap-1">
-                  {st.photographers.length
-                    ? st.photographers.map((p, i) => (
-                        <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(p, "bg-green-600"))}>{p}</span>
-                      ))
+                  {st.photographers.length || (st.ls || []).length
+                    ? <>
+                        {st.photographers.map((p, i) => (
+                          <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(p, "bg-green-600"))}>{p}</span>
+                        ))}
+                        {(st.ls || []).map((p, i) => (
+                          <span key={`ls-${i}`} className="inline-flex h-5 items-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-slate-900">{p}</span>
+                        ))}
+                      </>
                     : <span className="text-[11px] opacity-40">—</span>}
                   {(st.breaks || []).length > 0 && (
                     <span className="ml-auto text-[10px] font-bold opacity-80">
@@ -391,6 +365,7 @@ const normTactic = (t: HyroxTactic): HyroxTactic => ({
   shifts: (t.shifts || []).map((sh) => {
     const rows = sh.map((st) => ({
       ...st,
+      ls: Array.isArray(st.ls) ? st.ls : [],
       breaks: normBreaks(st.breaks as unknown as string | BreakRange[]),
     }));
     // append any fixed stations added after this tactic was saved (e.g. "LS Arch")
@@ -495,23 +470,26 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   };
 
   /** Add a dragged name: photographers dedupe within the shift, cover allows repeats across stations */
-  const addName = (si: number, sti: number, key: "photographers" | "cover", name: string) => {
+  const addName = (si: number, sti: number, key: "photographers" | "cover" | "ls", name: string) => {
     const shift = tactic.shifts[si];
     if (key === "photographers") {
       if (shift.some((s) => s.photographers.includes(name))) return;
       if (shift[sti].photographers.includes(name)) return;
+    } else if (key === "ls") {
+      if (shift.some((s) => (s.ls || []).includes(name))) return;
+      if ((shift[sti].ls || []).includes(name)) return;
     } else if (shift[sti].cover.includes(name)) {
       return;
     }
-    setShiftStation(si, sti, { [key]: [...shift[sti][key], name] });
+    setShiftStation(si, sti, { [key]: [...(shift[sti][key] || []), name] });
   };
-  const removeName = (si: number, sti: number, key: "photographers" | "cover", name: string) =>
+  const removeName = (si: number, sti: number, key: "photographers" | "cover" | "ls", name: string) =>
     setShiftStation(si, sti, { [key]: tactic.shifts[si][sti][key].filter((n) => n !== name) });
 
   const maxP = Math.max(1, ...tactic.switchGroups.map((g) => g.photographers.length));
 
   // Pool status: assigned to a station → green, covering → blue, free → grey
-  const assignedSet = new Set(tactic.shifts.flat().flatMap((s) => s.photographers));
+  const assignedSet = new Set(tactic.shifts.flat().flatMap((s) => [...s.photographers, ...(s.ls || [])]));
   const coveringSet = new Set(tactic.shifts.flat().flatMap((s) => s.cover));
   /** Team acronym/name tags — anything else in a cell is an external (LS) */
   const teamTags = new Set(event.photographers.map((p) => p.acronym || p.name));
@@ -590,21 +568,33 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                     <td className="px-4 py-1.5 font-medium text-slate-700">{st.station}</td>
                     <td className="px-2 py-1.5">
                       {EXTERNAL_STATIONS.has(st.station) ? (
-                        /* External crew — chips + inline +LS */
-                        <div className="flex flex-wrap items-center gap-1">
-                          <NameCell
-                            values={st.photographers}
-                            onDropName={() => {}}
-                            onRemove={(n) => removeName(si, sti, "photographers", n)}
-                            chipClass={() => "bg-amber-400 !text-slate-900"}
-                            droppable={false}
-                          />
-                          <LsInput
-                            onAdd={(v) =>
-                              setShiftStation(si, sti, { photographers: [...st.photographers, v] })
-                            }
-                            placeholder="LS"
-                          />
+                        /* External crew — whole cell is an LS drop zone */
+                        <NameCell
+                          values={st.photographers}
+                          onDropName={(n) => addName(si, sti, "photographers", n)}
+                          onRemove={(n) => removeName(si, sti, "photographers", n)}
+                          chipClass={() => "bg-amber-400 !text-slate-900"}
+                        />
+                      ) : st.station === "Finish" ? (
+                        /* Split cell: photographers zone | LS zone */
+                        <div className="grid grid-cols-2 divide-x divide-slate-200">
+                          <div className="pr-2">
+                            <NameCell
+                              values={st.photographers}
+                              onDropName={(n) => addName(si, sti, "photographers", n)}
+                              onRemove={(n) => removeName(si, sti, "photographers", n)}
+                              chipClass={(v) => (teamTags.has(v) ? "bg-green-600" : "bg-amber-400 !text-slate-900")}
+                            />
+                          </div>
+                          <div className="pl-2">
+                            <p className="mb-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-600">LS</p>
+                            <NameCell
+                              values={st.ls || []}
+                              onDropName={(n) => addName(si, sti, "ls", n)}
+                              onRemove={(n) => removeName(si, sti, "ls", n)}
+                              chipClass={() => "bg-amber-400 !text-slate-900"}
+                            />
+                          </div>
                         </div>
                       ) : (
                         <div className="flex flex-wrap items-center gap-1">
@@ -614,9 +604,6 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                             onRemove={(n) => removeName(si, sti, "photographers", n)}
                             chipClass={(v) => (teamTags.has(v) ? "bg-green-600" : "bg-amber-400 !text-slate-900")}
                           />
-                          {st.station === "Finish" && (
-                            <LsInput onAdd={(v) => addName(si, sti, "photographers", v)} placeholder="LS" />
-                          )}
                         </div>
                       )}
                     </td>

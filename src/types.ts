@@ -175,6 +175,7 @@ export interface HyroxBreakRange {
 export interface HyroxStationPlan {
   station: string; // fixed station name
   photographers: string[];
+  ls: string[]; // local/external crew assigned via LS drop zone
   breaks: HyroxBreakRange[]; // jumper-covered break windows
   cover: string[]; // jumper(s) covering this station
 }
