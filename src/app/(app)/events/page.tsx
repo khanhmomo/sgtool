@@ -14,11 +14,11 @@ import AssignTl from "@/components/AssignTl";
 export const dynamic = "force-dynamic";
 
 export default async function EventsPage(props: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; sort?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
-  const { q = "", status = "" } = await props.searchParams;
+  const { q = "", status = "", sort = "desc" } = await props.searchParams;
 
   await connectDB();
   const isAdmin = (session.user as { role?: string }).role === "admin";
@@ -31,7 +31,11 @@ export default async function EventsPage(props: {
       { type: { $regex: q, $options: "i" } },
     ];
   }
-  const events = (await Event.find(filter).sort({ date: -1 }).lean()).map(serializeEvent);
+  const events = (
+    await Event.find(filter)
+      .sort({ date: sort === "asc" ? 1 : -1 })
+      .lean()
+  ).map(serializeEvent);
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -47,7 +51,7 @@ export default async function EventsPage(props: {
         </Link>
       </div>
 
-      <EventsFilter q={q} status={status} />
+      <EventsFilter q={q} status={status} sort={sort} />
 
       {events.length === 0 ? (
         <Empty

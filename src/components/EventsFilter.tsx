@@ -6,12 +6,12 @@ import { Search } from "lucide-react";
 import { Select } from "@/components/ui";
 import { STATUS_META } from "@/lib/design";
 
-export default function EventsFilter({ q, status }: { q: string; status: string }) {
+export default function EventsFilter({ q, status, sort }: { q: string; status: string; sort: string }) {
   const router = useRouter();
   const params = useSearchParams();
   const [value, setValue] = useState(q);
 
-  function go(next: { q?: string; status?: string }) {
+  function go(next: { q?: string; status?: string; sort?: string }) {
     const p = new URLSearchParams(params.toString());
     if (next.q !== undefined) {
       if (next.q) p.set("q", next.q);
@@ -20,6 +20,10 @@ export default function EventsFilter({ q, status }: { q: string; status: string 
     if (next.status !== undefined) {
       if (next.status) p.set("status", next.status);
       else p.delete("status");
+    }
+    if (next.sort !== undefined) {
+      if (next.sort && next.sort !== "desc") p.set("sort", next.sort);
+      else p.delete("sort");
     }
     router.push(`/events?${p.toString()}`);
   }
@@ -48,6 +52,10 @@ export default function EventsFilter({ q, status }: { q: string; status: string 
             {v.label}
           </option>
         ))}
+      </Select>
+      <Select value={sort} onChange={(e) => go({ sort: e.target.value })} className="w-40">
+        <option value="desc">Newest first</option>
+        <option value="asc">Oldest first</option>
       </Select>
     </div>
   );
