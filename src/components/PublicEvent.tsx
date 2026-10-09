@@ -531,11 +531,11 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
           </Section>
         )}
 
-        {/* Hotel + Team — side by side on desktop */}
+        {/* Hotel + Team — full width, stacked */}
         <div className="grid gap-3 lg:grid-cols-2 lg:gap-4">
         {/* Hotels */}
         {event.hotels.some((ht) => ht.name) && (
-          <Section id="hotel" icon={<BedDouble size={16} />} title={event.hotels.length > 1 ? "Hotels" : "Hotel"}>
+          <Section id="hotel" icon={<BedDouble size={16} />} title={event.hotels.length > 1 ? "Hotels" : "Hotel"} className="lg:col-span-2">
             <div className="space-y-5">
               {event.hotels.filter((ht) => ht.name).map((hotel, i) => (
                 <div key={i} className="space-y-2.5">
@@ -595,7 +595,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
 
         {/* Team */}
         {event.photographers.length > 0 && (
-          <Section id="team" icon={<Camera size={16} />} title="Team" defaultOpen={false}>
+          <Section id="team" icon={<Camera size={16} />} title="Team" defaultOpen={false} className="lg:col-span-2">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {event.photographers.map((p) => (
                 <div key={p.id} className="flex items-center gap-2.5 rounded-md border border-slate-200 px-3 py-2">
