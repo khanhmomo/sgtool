@@ -130,12 +130,11 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
   const [days, setDays] = useState<{ date: string; rows: TacticRow[] }[]>(() => {
     if (!isFitnessIndoor) return [];
     const saved = event.tacticDays || [];
-    const dates = new Set([
-      ...dateRange(event.date, event.endDate),
-      ...saved.map((d) => d.date).filter(Boolean),
-    ]);
-    const sorted = [...dates].sort();
-    return (sorted.length ? sorted : [""]).map((date, i) => ({
+    // Days follow the event's start→end date range exactly; saved rows are
+    // merged in for matching dates (stale saved days outside the range drop).
+    const range = dateRange(event.date.slice(0, 10), (event.endDate || "").slice(0, 10));
+    const sorted = range.length ? range : [saved[0]?.date || ""];
+    return sorted.map((date, i) => ({
       date,
       rows:
         saved.find((d) => d.date === date)?.rows ??

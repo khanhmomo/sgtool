@@ -417,8 +417,11 @@ function dateRange(start: string, end: string): string[] {
 
 export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const [days, setDays] = useState<HyroxDayPlan[]>(() => {
-    const dates = new Set([...dateRange(event.date, event.endDate), ...(event.hyrox || []).map((d) => d.date)]);
-    return [...dates].sort().map((date) => ({
+    // Days follow the event's start→end date range exactly; saved hyrox entries
+    // merge in for matching dates (stale saved days outside the range drop).
+    const range = dateRange(event.date.slice(0, 10), (event.endDate || "").slice(0, 10));
+    const dates = range.length ? range : (event.hyrox || []).map((d) => d.date).filter(Boolean);
+    return [...new Set(dates)].sort().map((date) => ({
       date,
       callTime: event.hyrox?.find((x) => x.date === date)?.callTime || "",
       tactic: normTactic(event.hyrox?.find((x) => x.date === date)?.tactic || defaultTactic()),
@@ -845,7 +848,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
       </div>
       {/* Photographer pool — sticky right column, drag onto any cell */}
       {event.photographers.length > 0 && (
-        <aside className="sticky top-20 w-28 shrink-0 rounded-lg border border-slate-200 bg-white p-2">
+        <aside className="sticky top-20 w-36 shrink-0 rounded-lg border border-slate-200 bg-white p-2">
           <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Team</p>
           <div className="flex flex-col gap-1">
             {event.photographers.map((p) => {
@@ -859,11 +862,14 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                   onDragStart={(e) => e.dataTransfer.setData("text/plain", tag)}
                   title={covering ? "Covering (jumper)" : assigned ? "Assigned to a station" : "Drag to a station"}
                   className={cn(
-                    "cursor-grab truncate rounded px-2 py-1 text-center text-[11px] font-bold text-white active:cursor-grabbing",
+                    "cursor-grab truncate rounded px-2 py-1 text-left text-[11px] font-bold text-white active:cursor-grabbing",
                     covering ? "bg-blue-600" : assigned ? "bg-green-600" : "bg-slate-400"
                   )}
                 >
                   {tag}
+                  {p.name && p.name !== tag && (
+                    <span className="block truncate text-[9px] font-medium text-white/80">{p.name}</span>
+                  )}
                 </span>
               );
             })}
