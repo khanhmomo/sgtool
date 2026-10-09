@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Trash2, Users, X } from "lucide-react";
-import { Button, Card, CardHeader, Input } from "@/components/ui";
+import { useEffect, useState } from "react";
+import { BookOpen, Download, Plus, Trash2, Users, X } from "lucide-react";
+import { Button, Card, CardHeader, Input, Textarea } from "@/components/ui";
 import { cn, fmtDate, uid } from "@/lib/utils";
-import type { HyroxBreakRange, HyroxBreakTable, HyroxDayPlan, HyroxStationPlan, HyroxSwitchGroup, HyroxTactic } from "@/types";
+import Markdown from "@/components/Markdown";
+import type { HyroxBreakRange, HyroxBreakTable, HyroxDayPlan, HyroxStationPlan, HyroxSwitchGroup, HyroxTactic, TemplateDTO } from "@/types";
 import type { TabProps } from "./EventWorkspace";
 
 /** Fixed HYROX stations — never reordered or renamed by the user */
@@ -46,6 +47,7 @@ const blankStation = (station: string): HyroxStationPlan => ({
   ls: [],
   breaks: [],
   cover: [],
+  note: "",
 });
 
 /** Chip list + drop target used in Photographers / Cover cells */
@@ -107,6 +109,92 @@ const defaultTactic = (): HyroxTactic => ({
   breaks: [],
 });
 
+/** Add/Edit button that opens a briefing-style note editor with Bookshelf import */
+function NoteEditor({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [templates, setTemplates] = useState<TemplateDTO[] | null>(null);
+
+  useEffect(() => {
+    if (!importOpen || templates !== null) return;
+    fetch("/api/templates")
+      .then((r) => r.json())
+      .then((d) => setTemplates(d.templates || []))
+      .catch(() => setTemplates([]));
+  }, [importOpen, templates]);
+
+  return (
+    <>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+        className={cn(
+          "mt-0.5 block rounded px-1.5 py-0.5 text-[10px] font-medium",
+          value.trim() ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+        )}
+      >
+        {value.trim() ? `Edit ${label}` : `+ Add ${label}`}
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setOpen(false)}>
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <p className="text-sm font-bold text-slate-700">{label}</p>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => setImportOpen((v) => !v)}>
+                  <BookOpen size={13} /> Import from Bookshelf
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                  <X size={15} />
+                </Button>
+              </div>
+            </div>
+            {importOpen && (
+              <div className="max-h-56 overflow-y-auto border-b border-slate-100 px-4 py-3">
+                {templates === null ? (
+                  <p className="text-xs text-slate-400">Loading templates…</p>
+                ) : templates.length === 0 ? (
+                  <p className="text-xs text-slate-400">No templates yet — create some in your Bookshelf first.</p>
+                ) : (
+                  <div className="grid gap-1.5">
+                    {templates.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => { onChange(t.body); setImportOpen(false); }}
+                        className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-left text-sm hover:border-blue-300 hover:bg-blue-50/50"
+                      >
+                        <Download size={13} className="shrink-0 text-slate-400" />
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium text-slate-800">{t.title}</span>
+                          <span className="block truncate text-xs text-slate-400">
+                            {t.body.replace(/[#*\-[\]]/g, "").trim().slice(0, 80)}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="flex-1 overflow-auto p-4">
+              <Textarea
+                rows={12}
+                value={value}
+                onChange={(e) => onChange(e.target.value)}
+                placeholder={"# Note\n\n- Details…"}
+                className="font-mono text-xs"
+                autoFocus
+              />
+              <p className="mt-1.5 text-xs text-slate-400">
+                Supports # headings, - bullets, **bold**, [links](url).
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 const fmtT = (t: string) => {
   const m = t.match(/^(\d{2}):(\d{2})$/);
   if (!m) return t;
@@ -154,7 +242,10 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                     key={st.station}
                     className={cn("align-top text-slate-900", STATION_PASTEL[st.station] || "bg-slate-50")}
                   >
-                    <td className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">{st.station}</td>
+                    <td className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">
+                      {st.station}
+                      {st.note && <div className="mt-0.5 whitespace-normal text-[10px] font-normal text-slate-600"><Markdown text={st.note} /></div>}
+                    </td>
                     <td className="border border-slate-900 px-3 py-2">
                       {st.photographers.length || (st.ls || []).length ? (
                         <div className="flex flex-wrap gap-1">
@@ -193,6 +284,7 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
             {stations.map((st) => (
               <div key={st.station} className={cn("rounded-md border border-slate-900 p-2.5 text-slate-900", STATION_PASTEL[st.station] || "bg-slate-50")}>
                 <p className="mb-1 text-xs font-black uppercase tracking-wide">{st.station}</p>
+                {st.note && <div className="mb-1 text-[10px] font-normal text-slate-600"><Markdown text={st.note} /></div>}
                 <div className="flex flex-wrap items-center gap-1">
                   {st.photographers.length || (st.ls || []).length
                     ? <>
@@ -267,6 +359,11 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
             ))}
           </div>
           <p className="mt-1 text-[11px] text-slate-400">Photo 1 moves to Photo 2&apos;s station, 2 → 3, and so on.</p>
+          {hyrox.switchNote && (
+            <div className="mt-2 rounded-md border border-slate-900 bg-amber-50 p-2.5 text-xs text-slate-900">
+              <Markdown text={hyrox.switchNote} />
+            </div>
+          )}
         </div>
       )}
 
@@ -337,6 +434,11 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                 </div>
               </div>
             ) : null
+          )}
+          {hyrox.breakNote && (
+            <div className="rounded-md border border-slate-900 bg-amber-50 p-2.5 text-xs text-slate-900">
+              <Markdown text={hyrox.breakNote} />
+            </div>
           )}
         </div>
       )}
@@ -571,7 +673,14 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
               <tbody className="divide-y divide-slate-100">
                 {stations.map((st, sti) => (
                   <tr key={st.station}>
-                    <td className="px-4 py-1.5 font-medium text-slate-700">{st.station}</td>
+                    <td className="px-4 py-1.5 font-medium text-slate-700">
+                      {st.station}
+                      <NoteEditor
+                        label="Note"
+                        value={st.note || ""}
+                        onChange={(v) => setShiftStation(si, sti, { note: v })}
+                      />
+                    </td>
                     <td className="px-2 py-1.5">
                       {isExternal(st.station) ? (
                         /* External crew — whole cell is an LS drop zone; assigned members allowed */
@@ -754,6 +863,13 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
             Photographer 1 moves to Photographer 2&apos;s station, 2 → 3, and so on — the last in each group stays put.
           </p>
         )}
+        <div className="px-4 pb-4">
+          <NoteEditor
+            label="Instruction"
+            value={tactic.switchNote || ""}
+            onChange={(v) => touch({ ...tactic, switchNote: v })}
+          />
+        </div>
       </Card>
 
       <Card>
@@ -761,12 +877,17 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
           title="Break schedule — Stations 1–3 (self-managed, no jumper cover)"
           icon={<Users size={15} className="text-blue-600" />}
         />
-        <div className="flex flex-wrap gap-2 px-4 pb-4">
+        <div className="flex flex-wrap items-center gap-2 px-4 pb-4">
           {tactic.shifts.map((_, si) => (
             <Button key={si} variant="outline" size="sm" onClick={() => setBreakEdit(si)}>
               Edit breaks{tactic.shifts.length > 1 ? ` — Shift ${si + 1}` : ""}
             </Button>
           ))}
+          <NoteEditor
+            label="Instruction"
+            value={tactic.breakNote || ""}
+            onChange={(v) => touch({ ...tactic, breakNote: v })}
+          />
         </div>
       </Card>
 

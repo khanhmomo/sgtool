@@ -178,6 +178,7 @@ export interface HyroxStationPlan {
   ls: string[]; // local/external crew assigned via LS drop zone
   breaks: HyroxBreakRange[]; // jumper-covered break windows
   cover: string[]; // jumper(s) covering this station
+  note?: string; // free-text note for this station
 }
 
 export interface HyroxSwitchGroup {
@@ -205,6 +206,8 @@ export interface HyroxTactic {
   shifts: HyroxStationPlan[][]; // shifts[0] = shift 1 stations, [1] = shift 2
   switchGroups: HyroxSwitchGroup[];
   breaks: HyroxBreakTable[]; // breaks[shiftIdx] — stations 1-3, self-managed
+  switchNote?: string; // instruction shown under switch schedule
+  breakNote?: string; // instruction shown under break schedule
 }
 
 /** One race day of a HYROX event — each day has its own tactic */
