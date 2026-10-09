@@ -569,10 +569,13 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                     <td className="px-4 py-1.5 font-medium text-slate-700">{st.station}</td>
                     <td className="px-2 py-1.5">
                       {EXTERNAL_STATIONS.has(st.station) ? (
-                        /* External crew — whole cell is an LS drop zone */
+                        /* External crew — whole cell is an LS drop zone; assigned members allowed */
                         <NameCell
                           values={st.photographers}
-                          onDropName={(n) => addName(si, sti, "photographers", n)}
+                          onDropName={(n) => {
+                            if (!st.photographers.includes(n))
+                              setShiftStation(si, sti, { photographers: [...st.photographers, n] });
+                          }}
                           onRemove={(n) => removeName(si, sti, "photographers", n)}
                           chipClass={() => "bg-amber-400 !text-slate-900"}
                         />
