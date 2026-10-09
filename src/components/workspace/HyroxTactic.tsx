@@ -158,10 +158,10 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                       {st.photographers.length || (st.ls || []).length ? (
                         <div className="flex flex-wrap gap-1">
                           {st.photographers.map((p, i) => (
-                            <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(p, "bg-green-600"))}>{p}</span>
+                            <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(p, "bg-green-600"))}>{teamSet.has(p) ? p : `${p} LS`}</span>
                           ))}
                           {(st.ls || []).map((p, i) => (
-                            <span key={`ls-${i}`} className="inline-flex h-5 items-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-slate-900">{p}</span>
+                            <span key={`ls-${i}`} className="inline-flex h-5 items-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-slate-900">{p} LS</span>
                           ))}
                         </div>
                       ) : <span className="opacity-40">—</span>}
@@ -196,10 +196,10 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
                   {st.photographers.length || (st.ls || []).length
                     ? <>
                         {st.photographers.map((p, i) => (
-                          <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(p, "bg-green-600"))}>{p}</span>
+                          <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(p, "bg-green-600"))}>{teamSet.has(p) ? p : `${p} LS`}</span>
                         ))}
                         {(st.ls || []).map((p, i) => (
-                          <span key={`ls-${i}`} className="inline-flex h-5 items-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-slate-900">{p}</span>
+                          <span key={`ls-${i}`} className="inline-flex h-5 items-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-slate-900">{p} LS</span>
                         ))}
                       </>
                     : <span className="text-[11px] opacity-40">—</span>}
