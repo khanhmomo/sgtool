@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, Users } from "lucide-react";
+import { Plus, Trash2, Users, X } from "lucide-react";
 import { Button, Card, CardHeader, Input } from "@/components/ui";
 import { cn, fmtDate, uid } from "@/lib/utils";
 import type { HyroxBreakRange, HyroxBreakTable, HyroxDayPlan, HyroxStationPlan, HyroxSwitchGroup, HyroxTactic } from "@/types";
@@ -406,6 +406,8 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
     }));
   });
   const [activeDate, setActiveDate] = useState(days[0]?.date || "");
+  /** Shift index whose break schedule is open in the fullscreen editor, or null */
+  const [breakEdit, setBreakEdit] = useState<number | null>(null);
 
   const day = days.find((d) => d.date === activeDate);
   const tactic = day?.tactic || defaultTactic();
@@ -759,52 +761,69 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
           title="Break schedule — Stations 1–3 (self-managed, no jumper cover)"
           icon={<Users size={15} className="text-blue-600" />}
         />
-        <div className="space-y-4 px-4 pb-4">
-          {tactic.shifts.map((_, si) => {
-            const t = breakTable(si);
-            const times = t.times || [];
-            const rows = t.rows || {};
-            return (
-              <div key={si}>
-                <div className="mb-1.5 flex items-center gap-2">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    {tactic.shifts.length > 1 ? `Shift ${si + 1}` : "Breaks"}
-                  </p>
-                  <button
-                    onClick={() => addBreakCol(si)}
-                    className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                  >
-                    <Plus size={12} /> break
-                  </button>
+        <div className="flex flex-wrap gap-2 px-4 pb-4">
+          {tactic.shifts.map((_, si) => (
+            <Button key={si} variant="outline" size="sm" onClick={() => setBreakEdit(si)}>
+              Edit breaks{tactic.shifts.length > 1 ? ` — Shift ${si + 1}` : ""}
+            </Button>
+          ))}
+        </div>
+      </Card>
+
+      {/* Fullscreen break-schedule editor */}
+      {breakEdit !== null && (() => {
+        const si = breakEdit;
+        const t = breakTable(si);
+        const times = t.times || [];
+        const rows = t.rows || {};
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="flex max-h-[92vh] w-full max-w-[95vw] flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+              <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                <p className="text-sm font-bold text-slate-700">
+                  Break schedule — Stations 1–3{tactic.shifts.length > 1 ? ` (Shift ${si + 1})` : ""}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => addBreakCol(si)}>
+                    <Plus size={12} className="mr-1" /> break
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setBreakEdit(null)}>
+                    <X size={15} />
+                  </Button>
                 </div>
-                {times.length > 0 && (
+              </div>
+              <div className="flex flex-1 flex-col gap-2 overflow-hidden p-4">
+                <div className="min-h-0 flex-1 overflow-auto">
+                {times.length > 0 ? (
                   <div className="overflow-x-auto rounded-md border border-slate-200">
-                    <table className="w-full text-left text-sm">
+                    <table className="w-max min-w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500">
-                          <th className="w-28 px-2 py-1.5">Station</th>
+                          <th className="sticky left-0 z-10 w-24 bg-slate-50 px-1 py-0.5 shadow-[1px_0_0_0_#e2e8f0]">Station</th>
                           {times.map((br, bi) => (
-                            <th key={bi} className="px-1 py-1.5">
-                              <div className="flex items-center gap-0.5">
+                            <th key={bi} className="px-0.5 py-0.5">
+                              <div className="flex items-center">
                                 <Input
-                                  type="time"
+                                  inputMode="numeric"
+                                  placeholder="00:00"
                                   value={br.start}
-                                  className="h-6 w-[62px] px-0.5 text-[10px]"
+                                  className="h-5 w-[38px] rounded-none p-0 text-center text-[10px]"
                                   onChange={(e) => setBreakTime(si, bi, { start: e.target.value })}
                                 />
-                                <span className="text-[10px] text-slate-300">–</span>
+                                <span className="text-[9px] text-slate-300">–</span>
                                 <Input
-                                  type="time"
+                                  inputMode="numeric"
+                                  placeholder="00:00"
                                   value={br.end}
-                                  className="h-6 w-[62px] px-0.5 text-[10px]"
+                                  className="h-5 w-[38px] rounded-none p-0 text-center text-[10px]"
                                   onChange={(e) => setBreakTime(si, bi, { end: e.target.value })}
                                 />
                                 <button
                                   title="Remove break"
                                   onClick={() => removeBreakCol(si, bi)}
-                                  className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                  className="text-slate-400 hover:text-red-600"
                                 >
-                                  <Trash2 size={11} />
+                                  <Trash2 size={10} />
                                 </button>
                               </div>
                             </th>
@@ -814,15 +833,21 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                       <tbody className="divide-y divide-slate-100">
                         {BREAK_STATIONS.map((station) => (
                           <tr key={station}>
-                            <td className="px-3 py-1.5 font-medium text-slate-700">
-                              {station} <span className="text-[10px] font-normal text-slate-400">(optional)</span>
+                            <td className="sticky left-0 z-10 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-700 shadow-[1px_0_0_0_#e2e8f0]">
+                              {station} <span className="text-[9px] font-normal text-slate-400">(optional)</span>
                             </td>
                             {times.map((_, bi) => (
-                              <td key={bi} className="px-2 py-1.5">
+                              <td key={bi} className="border-l border-slate-200 p-0">
                                 <Input
-                                  className="h-6 w-14 px-1 text-[11px]"
+                                  className="h-5 w-full rounded-none border-transparent px-1 text-[10px] focus:border-slate-300"
                                   placeholder="—"
                                   value={(rows[station] || [])[bi] || ""}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    const n = e.dataTransfer.getData("text/plain");
+                                    if (n) setBreakCell(si, station, bi, n);
+                                  }}
                                   onChange={(e) => setBreakCell(si, station, bi, e.target.value)}
                                 />
                               </td>
@@ -832,12 +857,49 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                       </tbody>
                     </table>
                   </div>
+                ) : (
+                  <p className="text-sm text-slate-400">No breaks yet — click &quot;+ break&quot; to add a column.</p>
                 )}
+                </div>
+                {/* Break pool — members of stations 1–3 (either shift) who are not covering anyone */}
+                {(() => {
+                  const stationSet = new Set(BREAK_STATIONS);
+                  const stationMembers = new Set(
+                    tactic.shifts.flat().filter((s) => stationSet.has(s.station)).flatMap((s) => s.photographers)
+                  );
+                  const pool = event.photographers.filter((p) => {
+                    const tag = p.acronym || p.name;
+                    return stationMembers.has(tag) && !coveringSet.has(tag);
+                  });
+                  return pool.length > 0 ? (
+                    <aside className="shrink-0 rounded-md border border-slate-200 p-1.5">
+                      <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">Stations 1–3</p>
+                      <div className="flex flex-wrap gap-1">
+                        {pool.map((p) => {
+                          const tag = p.acronym || p.name;
+                          return (
+                            <span
+                              key={p.id}
+                              draggable
+                              onDragStart={(e) => e.dataTransfer.setData("text/plain", tag)}
+                              className="cursor-grab truncate rounded bg-green-600 px-1.5 py-0.5 text-left text-[10px] font-bold text-white active:cursor-grabbing"
+                            >
+                              {tag}
+                              {p.name && p.name !== tag && (
+                                <span className="block truncate text-[8px] font-medium text-white/80">{p.name}</span>
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </aside>
+                  ) : null;
+                })()}
               </div>
-            );
-          })}
-        </div>
-      </Card>
+            </div>
+          </div>
+        );
+      })()}
 
       </div>
       {/* Photographer pool — sticky right column, drag onto any cell */}

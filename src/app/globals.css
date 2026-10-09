@@ -50,3 +50,17 @@ body {
   line-height: 1;
   text-align: center;
 }
+
+/* Compact time inputs — hide native clock icon to save column space */
+.no-clock::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+/* Also strip native time styling so the field stays compact */
+.no-clock {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.no-clock::-webkit-inner-spin-button {
+  display: none;
+}
