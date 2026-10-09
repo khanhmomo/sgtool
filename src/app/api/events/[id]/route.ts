@@ -51,10 +51,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
     event.markModified("bestof");
   }
 
-  // Admin takeover: reassign the event to another Team Leader
+  // Ownership transfer: owner or admin may reassign the event to another Team Leader
   if (body.ownerId !== undefined) {
-    if (user.role !== "admin") {
-      return NextResponse.json({ error: "Only admins can transfer event ownership." }, { status: 403 });
+    const isOwner = String(event.ownerId) === String(user.id);
+    if (user.role !== "admin" && !isOwner) {
+      return NextResponse.json({ error: "Only the owner or an admin can transfer event ownership." }, { status: 403 });
     }
     const tl = await User.findById(String(body.ownerId));
     if (!tl || tl.active === false) {

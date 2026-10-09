@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Settings,
   Save,
@@ -43,6 +43,14 @@ export default function SettingsTab({
     website: event.website, status: event.status,
   });
   const [bestofUrl, setBestofUrl] = useState(event.bestof?.link || "");
+  const [ownerId, setOwnerId] = useState(event.ownerId);
+  const [tls, setTls] = useState<{ id: string; name: string; acronym: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/teamleaders")
+      .then((r) => (r.ok ? r.json() : { teamLeaders: [] }))
+      .then((d) => setTls(d.teamLeaders || []))
+      .catch(() => {});
+  }, []);
   const [dirty, setDirty] = useState(false);
   const [copied, setCopied] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
@@ -132,6 +140,21 @@ export default function SettingsTab({
           <Field label="Country"><Input value={form.country} onChange={set("country")} /></Field>
           <Field label="Organizer"><Input value={form.organizer} onChange={set("organizer")} /></Field>
           <Field label="Website"><Input value={form.website} onChange={set("website")} /></Field>
+          <Field label="Team leader">
+            <Select
+              value={ownerId}
+              onChange={(e) => { setOwnerId(e.target.value); setDirty(true); }}
+            >
+              {!tls.some((t) => t.id === ownerId) && (
+                <option value={ownerId}>{event.ownerAcronym || "Current leader"}</option>
+              )}
+              {tls.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.acronym} — {t.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Previous-year best-of (Sportograf link)" className="sm:col-span-2">
             <Input
               value={bestofUrl}
@@ -167,6 +190,7 @@ export default function SettingsTab({
               patch({
                 ...form,
                 status: form.status as EventStatus,
+                ownerId,
                 bestofUrl: bestofUrl.trim(),
               } as Parameters<typeof patch>[0]).then((ok) => ok && setDirty(false))
             }
