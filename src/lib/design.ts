@@ -60,6 +60,7 @@ export const DOC_CATEGORY_META: Record<
   DocCategory | "strategy",
   { label: string; badge: string }
 > = {
+  briefing: { label: "Briefing", badge: "bg-sky-50 text-sky-700 border-sky-200" },
   tactic: { label: "Tactic", badge: "bg-blue-50 text-blue-700 border-blue-200" },
   guide: { label: "Guide", badge: "bg-violet-50 text-violet-700 border-violet-200" },
   checklist: { label: "Checklist", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },

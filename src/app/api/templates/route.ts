@@ -7,7 +7,7 @@ import { serializeTemplate } from "@/lib/serialize";
 
 const schema = z.object({
   title: z.string().min(1).max(200),
-  category: z.enum(["tactic", "guide", "checklist", "note", "strategy", "other"]).default("other"),
+  category: z.enum(["briefing", "tactic", "guide", "checklist", "note", "strategy", "other"]).default("other"),
   tags: z.array(z.string().max(40)).max(20).default([]),
   body: z.string().max(100_000).default(""),
 });

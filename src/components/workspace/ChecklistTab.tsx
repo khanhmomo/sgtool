@@ -1,16 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { CheckSquare, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BookOpen, CheckSquare, Download, Plus, Trash2, X } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input } from "@/components/ui";
 import { cn, uid } from "@/lib/utils";
-import type { ChecklistGroup } from "@/types";
+import type { ChecklistGroup, TemplateDTO } from "@/types";
+import { parseChecklist } from "@/lib/checklist";
 import type { TabProps } from "./EventWorkspace";
 
 export default function ChecklistTab({ event, patch }: TabProps) {
   const [groups, setGroups] = useState<ChecklistGroup[]>(event.checklist);
   const [newItemText, setNewItemText] = useState<Record<string, string>>({});
   const [newGroup, setNewGroup] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+  const [templates, setTemplates] = useState<TemplateDTO[] | null>(null);
+
+  useEffect(() => {
+    if (!importOpen || templates !== null) return;
+    fetch("/api/templates")
+      .then((r) => (r.ok ? r.json() : { templates: [] }))
+      .then((d) => setTemplates(d.templates || []))
+      .catch(() => setTemplates([]));
+  }, [importOpen, templates]);
+
+  const checklistTemplates =
+    templates?.filter((t) => t.category === "checklist") || [];
+  const shownTemplates = checklistTemplates.length ? checklistTemplates : templates || [];
 
   async function save(next: ChecklistGroup[]) {
     setGroups(next);
@@ -29,6 +44,12 @@ export default function ChecklistTab({ event, patch }: TabProps) {
   function addItem(gi: number) {
     const text = (newItemText[groups[gi].id] || "").trim();
     if (!text) return;
+    // Dedupe: React 19 StrictMode double-invokes event handlers in dev —
+    // a second call must be a no-op or items get duplicated.
+    if (groups[gi].items.some((it) => it.text === text)) {
+      setNewItemText((s) => ({ ...s, [groups[gi].id]: "" }));
+      return;
+    }
     const next = groups.map((g, gi2) =>
       gi2 === gi ? { ...g, items: [...g.items, { id: uid(), text, done: false }] } : g
     );
@@ -60,7 +81,48 @@ export default function ChecklistTab({ event, patch }: TabProps) {
             {done}/{total} done
           </span>
         </div>
+        <Button size="sm" variant="outline" onClick={() => setImportOpen((v) => !v)}>
+          <BookOpen size={13} /> Import from Bookshelf
+        </Button>
       </div>
+
+      {importOpen && (
+        <Card>
+          <div className="p-3">
+            {templates === null ? (
+              <p className="px-1 py-2 text-xs text-slate-400">Loading templates…</p>
+            ) : shownTemplates.length === 0 ? (
+              <Empty
+                icon={<BookOpen size={22} />}
+                title="No checklist templates yet"
+                hint="Create a template with the 'Checklist' category in your Bookshelf."
+              />
+            ) : (
+              <div className="grid gap-1.5">
+                {shownTemplates.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      const parsed = parseChecklist(t.body);
+                      if (parsed.length) save([...groups, ...parsed]);
+                      setImportOpen(false);
+                    }}
+                    className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-left text-sm hover:border-blue-300 hover:bg-blue-50/50"
+                  >
+                    <Download size={13} className="shrink-0 text-slate-400" />
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium text-slate-800">{t.title}</span>
+                      <span className="block truncate text-xs text-slate-400">
+                        {t.body.replace(/[#*\-[\]]/g, "").trim().slice(0, 80)}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       {groups.length === 0 && (
         <Empty

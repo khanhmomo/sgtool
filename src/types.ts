@@ -3,7 +3,7 @@
 
 export type EventStatus = "planning" | "ready" | "live" | "completed" | "archived";
 export type Sport = "swim" | "bike" | "run" | "other";
-export type DocCategory = "tactic" | "guide" | "checklist" | "note" | "other";
+export type DocCategory = "briefing" | "tactic" | "guide" | "checklist" | "note" | "other";
 export type FileCategory = "map" | "briefing" | "venue" | "hotel" | "other";
 export type PositionStatus = "draft" | "confirmed";
 

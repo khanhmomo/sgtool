@@ -70,7 +70,7 @@ const TemplateSchema = new Schema(
     title: { type: String, required: true },
     category: {
       type: String,
-      enum: ["tactic", "guide", "checklist", "note", "strategy", "other"],
+      enum: ["briefing", "tactic", "guide", "checklist", "note", "strategy", "other"],
       default: "other",
       index: true,
     },

@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 const patchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
-  category: z.enum(["tactic", "guide", "checklist", "note", "strategy", "other"]).optional(),
+  category: z.enum(["briefing", "tactic", "guide", "checklist", "note", "strategy", "other"]).optional(),
   tags: z.array(z.string().max(40)).max(20).optional(),
   body: z.string().max(100_000).optional(),
   archived: z.boolean().optional(),
