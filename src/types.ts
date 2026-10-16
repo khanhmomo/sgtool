@@ -217,6 +217,16 @@ export interface HyroxDayPlan {
   tactic: HyroxTactic;
 }
 
+export interface EventRequest {
+  id: string;
+  name: string; // photographer's name
+  acronym: string; // photographer acronym
+  body: string; // the request text
+  status: "new" | "read" | "accepted" | "declined"; // "new" shows as "Need review"
+  tlNote: string; // private team-leader note
+  createdAt: string;
+}
+
 export interface EventDTO {
   id: string;
   ownerId: string;
@@ -247,6 +257,7 @@ export interface EventDTO {
   course: Course | null;
   documents: EventDoc[];
   checklist: ChecklistGroup[];
+  requests: EventRequest[];
   notes: string;
   createdAt: string;
   updatedAt: string;

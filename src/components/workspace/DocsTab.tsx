@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, Plus, Trash2, BookOpen, Save, Pencil, X } from "lucide-react";
+import { FileText, Plus, Trash2, BookOpen, Check, Pencil, X } from "lucide-react";
 import {
   Badge,
   Button,
@@ -19,6 +19,7 @@ import { uid } from "@/lib/utils";
 import Markdown from "@/components/Markdown";
 import type { DocCategory, EventDoc, TemplateDTO } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useAutosave } from "./autosave";
 
 const DOC_CATS: DocCategory[] = ["tactic", "guide", "checklist", "note", "other"];
 
@@ -27,6 +28,7 @@ type EditingDoc = EventDoc & { __isNew?: boolean };
 export default function DocsTab({ event, patch, saving }: TabProps) {
   const [docs, setDocs] = useState<EventDoc[]>(event.documents);
   const [notes, setNotes] = useState(event.notes);
+  useAutosave(notes, patch, (v) => ({ notes: v }));
   const [editing, setEditing] = useState<EditingDoc | null>(null);
   const [templates, setTemplates] = useState<TemplateDTO[]>([]);
   const [addOpen, setAddOpen] = useState(false);
@@ -198,11 +200,7 @@ export default function DocsTab({ event, patch, saving }: TabProps) {
             rows={5}
             placeholder={"# Race day notes\n- Support **bold**, *italic*, [links](https://…)\n- Headings with # ## ###\n- Bullet and numbered lists"}
           />
-          <div className="flex justify-end">
-            <Button size="sm" variant="accent" loading={saving} onClick={() => patch({ notes })}>
-              <Save size={13} /> Save notes
-            </Button>
-          </div>
+          <p className="text-xs text-slate-400">Autosaves as you type.</p>
         </div>
       </Card>
 
@@ -253,7 +251,7 @@ export default function DocsTab({ event, patch, saving }: TabProps) {
                   Cancel
                 </Button>
                 <Button variant="accent" loading={saving} onClick={saveDoc} disabled={!editing.title.trim()}>
-                  <Save size={13} /> Save document
+                  <Check size={13} /> Done
                 </Button>
               </div>
             </div>

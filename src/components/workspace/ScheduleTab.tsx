@@ -6,24 +6,22 @@ import { Button, Card, CardHeader, Empty, Input } from "@/components/ui";
 import { uid } from "@/lib/utils";
 import type { ScheduleItem } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useAutosave } from "./autosave";
 
-export default function ScheduleTab({ event, patch, saving }: TabProps) {
+export default function ScheduleTab({ event, patch }: TabProps) {
   const [items, setItems] = useState<ScheduleItem[]>(event.schedule);
-  const [dirty, setDirty] = useState(false);
+  useAutosave(items, patch, (v) => ({ schedule: v }));
 
   function update(i: number, k: keyof ScheduleItem, val: string) {
     setItems((s) => s.map((x, j) => (j === i ? { ...x, [k]: val } : x)));
-    setDirty(true);
   }
 
   function add() {
     setItems((s) => [...s, { id: uid(), day: "Race day", time: "", title: "", detail: "" }]);
-    setDirty(true);
   }
 
   function remove(i: number) {
     setItems((s) => s.filter((_, j) => j !== i));
-    setDirty(true);
   }
 
   const days = [...new Set(items.map((i) => i.day || "Schedule"))];
@@ -35,16 +33,9 @@ export default function ScheduleTab({ event, patch, saving }: TabProps) {
           title="Event schedule"
           icon={<CalendarClock size={15} className="text-blue-600" />}
           action={
-            <div className="flex gap-2">
-              {dirty && (
-                <Button size="sm" variant="accent" loading={saving} onClick={() => patch({ schedule: items }).then((ok) => ok && setDirty(false))}>
-                  Save
-                </Button>
-              )}
-              <Button size="sm" variant="outline" onClick={add}>
-                <Plus size={14} /> Add item
-              </Button>
-            </div>
+            <Button size="sm" variant="outline" onClick={add}>
+              <Plus size={14} /> Add item
+            </Button>
           }
         />
         <div className="p-4">

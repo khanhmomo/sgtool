@@ -59,6 +59,7 @@ export function serializeEvent(doc: any): EventDTO {
     course: e.course || null,
     documents: e.documents || [],
     checklist: e.checklist || [],
+    requests: e.requests || [],
     notes: e.notes || "",
     createdAt: e.createdAt || "",
     updatedAt: e.updatedAt || "",

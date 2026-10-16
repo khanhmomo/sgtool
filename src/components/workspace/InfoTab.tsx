@@ -6,7 +6,6 @@ import {
   BedDouble,
   Plus,
   Trash2,
-  Save,
   ExternalLink,
 } from "lucide-react";
 import {
@@ -20,28 +19,7 @@ import {
 import { uid } from "@/lib/utils";
 import type { HotelInfo, Photographer, RoomAssignment, VenueInfo } from "@/types";
 import type { TabProps } from "./EventWorkspace";
-
-function SaveBar({
-  dirty,
-  saving,
-  saved,
-  onSave,
-}: {
-  dirty: boolean;
-  saving: boolean;
-  saved: boolean;
-  onSave: () => void;
-}) {
-  if (!dirty && !saved) return null;
-  return (
-    <div className="mt-3 flex items-center justify-end gap-2">
-      {saved && !dirty && <span className="text-xs font-medium text-emerald-600">Saved</span>}
-      <Button size="sm" variant="accent" onClick={onSave} loading={saving} disabled={!dirty}>
-        <Save size={13} /> Save
-      </Button>
-    </div>
-  );
-}
+import { useAutosave } from "./autosave";
 
 function Chip({ acronym, onDragStart }: { acronym: string; onDragStart: (a: string) => void }) {
   return (
@@ -176,30 +154,17 @@ function RoomBoard({
   );
 }
 
-export default function InfoTab({ event, patch, saving }: TabProps) {
+export default function InfoTab({ event, patch }: TabProps) {
   const [venue, setVenue] = useState<VenueInfo>(event.venue);
   const [hotels, setHotels] = useState<HotelInfo[]>(event.hotels);
-  const [dirty, setDirty] = useState<Record<string, boolean>>({});
-  const [savedMsg, setSavedMsg] = useState<Record<string, boolean>>({});
-
-  const mark = (k: string) => setDirty((d) => ({ ...d, [k]: true }));
-
-  async function save(key: string, fields: Record<string, unknown>) {
-    const ok = await patch(fields as never);
-    if (ok) {
-      setDirty((d) => ({ ...d, [key]: false }));
-      setSavedMsg((s) => ({ ...s, [key]: true }));
-      setTimeout(() => setSavedMsg((s) => ({ ...s, [key]: false })), 2500);
-    }
-  }
+  useAutosave(venue, patch, (val) => ({ venue: val }));
+  useAutosave(hotels, patch, (val) => ({ hotels: val }));
 
   const v = (k: keyof VenueInfo) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setVenue((x) => ({ ...x, [k]: e.target.value }));
-    mark("venue");
   };
   const h = (i: number, k: keyof HotelInfo) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setHotels((x) => x.map((it, j) => (j === i ? { ...it, [k]: e.target.value } : it)));
-    mark("hotels");
   };
   const setHotelRooms = (i: number) => (roomAssign: RoomAssignment[]) => {
     setHotels((x) => {
@@ -218,7 +183,6 @@ export default function InfoTab({ event, patch, saving }: TabProps) {
         };
       });
     });
-    mark("hotels");
   };
   // Acronyms assigned in any hotel OTHER than index i — shared pool exclusion
   const assignedInOtherHotels = (i: number) =>
@@ -229,11 +193,9 @@ export default function InfoTab({ event, patch, saving }: TabProps) {
   };
   function addHotel() {
     setHotels((x) => [...x, { ...EMPTY_HOTEL, roomAssign: [] }]);
-    mark("hotels");
   }
   function removeHotel(i: number) {
     setHotels((x) => x.filter((_, j) => j !== i));
-    mark("hotels");
   }
 
   return (
@@ -259,9 +221,6 @@ export default function InfoTab({ event, patch, saving }: TabProps) {
           <Field label="Notes" className="sm:col-span-2">
             <Textarea value={venue.notes} onChange={v("notes")} rows={2} />
           </Field>
-        </div>
-        <div className="border-t border-slate-100 px-4 pb-3">
-          <SaveBar dirty={!!dirty.venue} saving={saving} saved={!!savedMsg.venue} onSave={() => save("venue", { venue })} />
         </div>
       </Card>
 
@@ -320,9 +279,6 @@ export default function InfoTab({ event, patch, saving }: TabProps) {
             </div>
           </div>
         ))}
-        <div className="border-t border-slate-100 px-4 pb-3">
-          <SaveBar dirty={!!dirty.hotels} saving={saving} saved={!!savedMsg.hotels} onSave={() => save("hotels", { hotels })} />
-        </div>
       </Card>
 
       {event.website && (

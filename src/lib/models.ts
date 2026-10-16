@@ -54,6 +54,7 @@ const EventSchema = new Schema(
     course: { type: Schema.Types.Mixed, default: null },
     documents: { type: [Schema.Types.Mixed], default: [] },
     checklist: { type: [Schema.Types.Mixed], default: [] },
+    requests: { type: [Schema.Types.Mixed], default: [] },
     notes: { type: String, default: "" },
   },
   { timestamps: true }

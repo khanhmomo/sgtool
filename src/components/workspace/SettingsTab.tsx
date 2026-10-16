@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import {
   Settings,
-  Save,
   Share2,
   Copy,
   Check,
@@ -25,6 +24,7 @@ import { STATUS_META } from "@/lib/design";
 import { fmtDate } from "@/lib/utils";
 import type { EventStatus } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useAutosave } from "./autosave";
 
 const EVENT_TYPES = [
   "IRONMAN", "IRONMAN 70.3", "Obstacle Race", "Marathon", "Trail Run", "HYROX",
@@ -34,7 +34,6 @@ const EVENT_TYPES = [
 export default function SettingsTab({
   event,
   patch,
-  saving,
   onDeleted,
 }: TabProps & { onDeleted: () => void }) {
   const [form, setForm] = useState({
@@ -51,7 +50,11 @@ export default function SettingsTab({
       .then((d) => setTls(d.teamLeaders || []))
       .catch(() => {});
   }, []);
-  const [dirty, setDirty] = useState(false);
+  const saveKey = JSON.stringify({ form, ownerId, bestofUrl });
+  useAutosave(saveKey, patch, (v) => {
+    const { form: f, ownerId: o, bestofUrl: b } = JSON.parse(v);
+    return { ...f, status: f.status as EventStatus, ownerId: o, bestofUrl: b.trim() };
+  });
   const [copied, setCopied] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -61,7 +64,6 @@ export default function SettingsTab({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
-    setDirty(true);
   };
 
   // relative URL — identical on server and client (no hydration mismatch)
@@ -143,7 +145,7 @@ export default function SettingsTab({
           <Field label="Team leader">
             <Select
               value={ownerId}
-              onChange={(e) => { setOwnerId(e.target.value); setDirty(true); }}
+              onChange={(e) => setOwnerId(e.target.value)}
             >
               {!tls.some((t) => t.id === ownerId) && (
                 <option value={ownerId}>{event.ownerAcronym || "Current leader"}</option>
@@ -158,7 +160,7 @@ export default function SettingsTab({
           <Field label="Previous-year best-of (Sportograf link)" className="sm:col-span-2">
             <Input
               value={bestofUrl}
-              onChange={(e) => { setBestofUrl(e.target.value); setDirty(true); }}
+              onChange={(e) => setBestofUrl(e.target.value)}
               placeholder="https://www.sportograf.com/en/event/26335"
             />
           </Field>
@@ -181,22 +183,7 @@ export default function SettingsTab({
           <p className="text-xs text-slate-400">
             Created {fmtDate(event.createdAt)} · Updated {fmtDate(event.updatedAt)}
           </p>
-          <Button
-            size="sm"
-            variant="accent"
-            loading={saving}
-            disabled={!dirty}
-            onClick={() =>
-              patch({
-                ...form,
-                status: form.status as EventStatus,
-                ownerId,
-                bestofUrl: bestofUrl.trim(),
-              } as Parameters<typeof patch>[0]).then((ok) => ok && setDirty(false))
-            }
-          >
-            <Save size={13} /> Save changes
-          </Button>
+          <p className="text-xs text-slate-400">Autosaves on change.</p>
         </div>
       </Card>
 

@@ -10,14 +10,56 @@ import {
   ZoomIn,
   ZoomOut,
   FileText,
+  ExternalLink,
 } from "lucide-react";
+import * as pdfjs from "pdfjs-dist";
 import { cn, fmtSize } from "@/lib/utils";
 import { Button } from "@/components/ui";
 import type { FileDTO } from "@/types";
 
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
 // ── PDF viewer (embedded, zoom/fullscreen/download) ────────────────────────
 export function PdfViewer({ file, onClose }: { file: FileDTO; onClose: () => void }) {
   const frameRef = useRef<HTMLDivElement>(null);
+  const canvasWrapRef = useRef<HTMLDivElement>(null);
+  const [pdfState, setPdfState] = useState<"loading" | "ready" | "error">("loading");
+
+  // Render every page to canvas — natural in-page scroll + pinch zoom on mobile
+  useEffect(() => {
+    const wrap = canvasWrapRef.current;
+    if (!wrap) return;
+    let cancelled = false;
+    setPdfState("loading");
+    wrap.innerHTML = "";
+    (async () => {
+      try {
+        const doc = await pdfjs.getDocument({ url: file.url }).promise;
+        const width = wrap.clientWidth || 360;
+        const dpr = Math.min(3, window.devicePixelRatio || 1);
+        for (let i = 1; i <= doc.numPages; i++) {
+          if (cancelled) return;
+          const page = await doc.getPage(i);
+          const base = page.getViewport({ scale: 1 });
+          const viewport = page.getViewport({ scale: (width / base.width) * dpr });
+          const cv = document.createElement("canvas");
+          cv.width = viewport.width;
+          cv.height = viewport.height;
+          cv.className = "block w-full";
+          cv.style.marginBottom = "6px";
+          await page.render({ canvas: cv, viewport }).promise;
+          if (cancelled) return;
+          wrap.appendChild(cv);
+        }
+        if (!cancelled) setPdfState("ready");
+      } catch {
+        if (!cancelled) setPdfState("error");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [file.url]);
 
   function fullscreen() {
     frameRef.current?.requestFullscreen?.().catch(() => {
@@ -38,29 +80,52 @@ export function PdfViewer({ file, onClose }: { file: FileDTO; onClose: () => voi
         className="mx-auto flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-white"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-2.5">
+        <div className="flex items-center gap-2 border-b border-slate-200 px-3 py-2 sm:px-4 sm:py-2.5">
           <FileText size={15} className="text-red-600" />
           <p className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">
             {file.filename}
           </p>
           <span className="hidden text-xs text-slate-400 sm:inline">{fmtSize(file.size)}</span>
-          <a href={file.url} download={file.filename} target="_blank" rel="noopener noreferrer">
+          <a href={file.url} download={file.filename} target="_blank" rel="noopener noreferrer" className="hidden sm:inline-flex">
             <Button size="xs" variant="outline">
               <Download size={13} /> Download
             </Button>
           </a>
-          <Button size="xs" variant="outline" onClick={fullscreen}>
+          <Button size="xs" variant="outline" onClick={fullscreen} className="hidden sm:inline-flex">
             <Maximize2 size={13} /> Fullscreen
           </Button>
           <button onClick={onClose} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
             <X size={16} />
           </button>
         </div>
-        <iframe
-          src={`${file.url}#view=FitH&toolbar=1&navpanes=0`}
-          title={file.filename}
-          className="h-full w-full flex-1 bg-slate-100"
-        />
+        {/* Inline page render (canvas) — scroll/zoom works in-page on all devices.
+            canvasWrap holds ONLY manually-appended canvases — React children here
+            would be clobbered by innerHTML cleanup and trigger removeChild errors. */}
+        <div className="relative flex-1 overflow-auto bg-slate-100">
+          <div ref={canvasWrapRef} />
+          {pdfState === "loading" && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <p className="text-xs text-slate-400">Rendering PDF…</p>
+            </div>
+          )}
+          {pdfState === "error" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
+              <p className="text-xs text-slate-500">Couldn&apos;t render this PDF in-page.</p>
+              <a href={file.url} target="_blank" rel="noopener noreferrer">
+                <Button variant="accent" size="sm">
+                  <ExternalLink size={13} /> Open in new tab
+                </Button>
+              </a>
+            </div>
+          )}
+        </div>
+        {pdfState === "ready" && (
+          <div className="flex items-center justify-center gap-3 border-t border-slate-100 px-3 py-2 sm:hidden">
+            <a href={file.url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-600">Open</a>
+            <span className="text-slate-300">·</span>
+            <a href={file.url} download={file.filename} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-blue-600">Download</a>
+          </div>
+        )}
       </div>
     </div>
   );

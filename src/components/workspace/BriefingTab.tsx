@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Megaphone, Save, BookOpen, Download } from "lucide-react";
+import { Megaphone, BookOpen, Download } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Textarea } from "@/components/ui";
 import Markdown from "@/components/Markdown";
 import type { TemplateDTO } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useAutosave } from "./autosave";
 
-export default function BriefingTab({ event, patch, saving }: TabProps) {
+export default function BriefingTab({ event, patch }: TabProps) {
   const [text, setText] = useState(event.briefing || "");
-  const [dirty, setDirty] = useState(false);
+  useAutosave(text, patch, (v) => ({ briefing: v }));
   const [templates, setTemplates] = useState<TemplateDTO[] | null>(null);
   const [importOpen, setImportOpen] = useState(false);
 
@@ -52,7 +53,6 @@ export default function BriefingTab({ event, patch, saving }: TabProps) {
                     key={t.id}
                     onClick={() => {
                       setText(t.body);
-                      setDirty(true);
                       setImportOpen(false);
                     }}
                     className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-left text-sm hover:border-blue-300 hover:bg-blue-50/50"
@@ -75,10 +75,7 @@ export default function BriefingTab({ event, patch, saving }: TabProps) {
           <Textarea
             rows={16}
             value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              setDirty(true);
-            }}
+            onChange={(e) => setText(e.target.value)}
             placeholder={"# Briefing\n\n- Meet 06:00 at venue…\n- Gear checklist…"}
             className="font-mono text-xs"
           />
@@ -87,16 +84,8 @@ export default function BriefingTab({ event, patch, saving }: TabProps) {
           </p>
         </div>
 
-        <div className="flex justify-end border-t border-slate-100 px-4 py-3">
-          <Button
-            size="sm"
-            variant="accent"
-            loading={saving}
-            disabled={!dirty}
-            onClick={() => patch({ briefing: text }).then((ok) => ok && setDirty(false))}
-          >
-            <Save size={13} /> Save briefing
-          </Button>
+        <div className="border-t border-slate-100 px-4 py-3">
+          <p className="text-xs text-slate-400">Autosaves as you type.</p>
         </div>
       </Card>
 

@@ -21,6 +21,7 @@ import {
   Navigation,
   Images,
   Megaphone,
+  MessageSquarePlus,
 } from "lucide-react";
 import { Badge, Card } from "@/components/ui";
 import { STATUS_META, SPORT_META } from "@/lib/design";
@@ -150,6 +151,23 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
 
   // Best-of lightbox state + FileDTO-shaped wrappers for the shared Lightbox
   const [boIndex, setBoIndex] = useState<number | null>(null);
+  const [reqOpen, setReqOpen] = useState(false);
+  const [reqForm, setReqForm] = useState({ name: "", acronym: "", body: "" });
+  const [reqState, setReqState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+
+  async function sendRequest() {
+    setReqState("sending");
+    try {
+      const res = await fetch("/api/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug: event.shareSlug, ...reqForm }),
+      });
+      setReqState(res.ok ? "sent" : "error");
+    } catch {
+      setReqState("error");
+    }
+  }
   const boFiles: FileDTO[] = (event.bestof?.images || []).map((src, i) => ({
     id: `bo-${i}`,
     url: src,
@@ -167,7 +185,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
     { id: "briefing", label: "Briefing", icon: Megaphone, show: !!event.briefing?.trim() },
     { id: "venue", label: "Venue", icon: MapPin, show: !!event.venue.name },
     { id: "calltime", label: "Call time", icon: AlarmClock, show: callTimes.length > 0 },
-    { id: "tactic", label: "Tactic", icon: Target, show: (event.tactic || []).length > 0 || (event.hyrox || []).length > 0 },
+    { id: "tactic", label: "Tactic", icon: Target, show: (event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0) || (event.hyrox || []).length > 0 },
     { id: "course", label: "Course", icon: RouteIcon, show: legs.length > 0 },
     { id: "files", label: "Files", icon: FolderOpen, show: files.length > 0 },
     { id: "hotel", label: "Hotel", icon: BedDouble, show: event.hotels.some((h) => h.name) },
@@ -205,6 +223,12 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
             )}
             <span className="text-slate-400">TL: {event.ownerAcronym}</span>
           </div>
+          <button
+            onClick={() => setReqOpen(true)}
+            className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500"
+          >
+            <MessageSquarePlus size={14} /> Make request
+          </button>
         </div>
       </header>
 
@@ -667,6 +691,71 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
           onNavigate={setBoIndex}
         />
       )}
+      {/* Photographer request modal */}
+      {reqOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setReqOpen(false)}>
+          <div className="w-full max-w-md rounded-lg bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b border-slate-200 px-4 py-3">
+              <p className="text-sm font-bold text-slate-800">Make a request</p>
+              <p className="text-xs text-slate-400">Sent to the team leader — they&apos;ll review it in their workspace.</p>
+            </div>
+            {reqState === "sent" ? (
+              <div className="p-6 text-center">
+                <p className="text-sm font-semibold text-emerald-600">Request sent — thank you!</p>
+                <button onClick={() => { setReqOpen(false); setReqState("idle"); setReqForm({ name: "", acronym: "", body: "" }); }} className="mt-3 rounded-md bg-slate-900 px-4 py-2 text-xs font-semibold text-white">Close</button>
+              </div>
+            ) : (
+              <div className="space-y-3 p-4">
+                <div className="grid grid-cols-[1fr_110px] gap-3">
+                  <div>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Name</p>
+                    <input
+                      value={reqForm.name}
+                      onChange={(e) => setReqForm({ ...reqForm, name: e.target.value })}
+                      placeholder="Jane Doe"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Acronym</p>
+                    <input
+                      value={reqForm.acronym}
+                      onChange={(e) => setReqForm({ ...reqForm, acronym: e.target.value.toUpperCase() })}
+                      placeholder="JD"
+                      maxLength={6}
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm uppercase"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Request</p>
+                  <textarea
+                    value={reqForm.body}
+                    onChange={(e) => setReqForm({ ...reqForm, body: e.target.value })}
+                    rows={4}
+                    placeholder="e.g. Could I swap Bike 1 with another photographer?"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                {reqState === "error" && <p className="text-xs font-medium text-red-600">Failed to send — please try again.</p>}
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setReqOpen(false)} className="rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={sendRequest}
+                    disabled={!reqForm.name.trim() || !reqForm.body.trim() || reqState === "sending"}
+                    className="rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    {reqState === "sending" ? "Sending…" : "Send request"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {imgIndex !== null && images[imgIndex] && (
         <Lightbox files={images} index={imgIndex} onClose={() => setImgIndex(null)} onNavigate={setImgIndex} />
       )}

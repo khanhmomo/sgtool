@@ -6,18 +6,18 @@ import { Button, Card, CardHeader, Empty, Input, Notice } from "@/components/ui"
 import { uid } from "@/lib/utils";
 import type { Photographer } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useAutosave } from "./autosave";
 
 const ROLES = ["Photographer", "Team Leader", "Second Shooter", "Drone", "Video", "Runner"];
 
-export default function TeamTab({ event, patch, saving }: TabProps) {
+export default function TeamTab({ event, patch }: TabProps) {
   const [team, setTeam] = useState<Photographer[]>(event.photographers);
-  const [dirty, setDirty] = useState(false);
+  useAutosave(team, patch, (v) => ({ photographers: v }));
   const [importMsg, setImportMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function update(i: number, k: keyof Photographer, val: string) {
     setTeam((t) => t.map((x, j) => (j === i ? { ...x, [k]: val } : x)));
-    setDirty(true);
   }
 
   function addRow(acronym = "") {
@@ -25,7 +25,6 @@ export default function TeamTab({ event, patch, saving }: TabProps) {
       ...t,
       { id: uid(), acronym: acronym.toUpperCase(), name: "", phone: "", email: "", role: "Photographer", vehicle: "", notes: "" },
     ]);
-    setDirty(true);
   }
 
   // RFC-4180-ish splitter — handles quoted cells containing commas/newlines
@@ -101,11 +100,10 @@ export default function TeamTab({ event, patch, saving }: TabProps) {
 
     if (added.length) {
       setTeam((t) => [...t, ...added]);
-      setDirty(true);
     }
     setImportMsg(
       added.length
-        ? { kind: "ok", text: `Imported ${added.length} photographer${added.length > 1 ? "s" : ""}${skipped ? `, skipped ${skipped} duplicate acronym${skipped > 1 ? "s" : ""}` : ""}. Click Save to persist.` }
+        ? { kind: "ok", text: `Imported ${added.length} photographer${added.length > 1 ? "s" : ""}${skipped ? `, skipped ${skipped} duplicate acronym${skipped > 1 ? "s" : ""}` : ""} — saved automatically.` }
         : { kind: "error", text: skipped ? "All rows were duplicates of existing acronyms." : "No photographers found in the file." }
     );
   }
@@ -118,16 +116,6 @@ export default function TeamTab({ event, patch, saving }: TabProps) {
           icon={<Users size={15} className="text-blue-600" />}
           action={
             <div className="flex gap-2">
-              {dirty && (
-                <Button
-                  size="sm"
-                  variant="accent"
-                  loading={saving}
-                  onClick={() => patch({ photographers: team }).then((ok) => ok && setDirty(false))}
-                >
-                  Save
-                </Button>
-              )}
               <Button size="sm" variant="outline" onClick={() => addRow()}>
                 <Plus size={14} /> Add
               </Button>
@@ -178,7 +166,6 @@ export default function TeamTab({ event, patch, saving }: TabProps) {
               <button
                 onClick={() => {
                   setTeam((t) => t.filter((_, j) => j !== i));
-                  setDirty(true);
                 }}
                 className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
               >

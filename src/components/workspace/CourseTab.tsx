@@ -944,7 +944,7 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
                   onClick={saveEditing}
                   disabled={!editing.photographer.trim()}
                 >
-                  Save spot
+                  <Check size={13} /> Done
                 </Button>
               </div>
             </div>

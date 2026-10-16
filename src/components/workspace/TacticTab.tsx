@@ -8,7 +8,6 @@ import {
   ArrowUp,
   ArrowDown,
   Wand2,
-  Save,
   AlarmClock,
 } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input, Select, Textarea, Notice } from "@/components/ui";
@@ -16,6 +15,7 @@ import { uid, googleMapsUrl, fmtDate } from "@/lib/utils";
 import type { TacticRow } from "@/types";
 import type { TabProps } from "./EventWorkspace";
 import HyroxTactic from "./HyroxTactic";
+import { useAutosave } from "./autosave";
 
 const LENS_OPTIONS = ["24-70 / 16-35", "70-200"];
 
@@ -124,11 +124,13 @@ function dateRange(start: string, end: string): string[] {
 export default function TacticTab({ event, patch, setEvent, saving }: TabProps) {
   const isIronman = /ironman|triathlon/i.test(event.type);
   const isFitnessIndoor = /fitness\s*indoor/i.test(event.type);
+  // Obstacle races also span multiple days — they get the per-day tactic tables too
+  const multiDay = isFitnessIndoor || /obstacle/i.test(event.type);
 
   // Fitness Indoor: one tactic table per event day (tacticDays). Legacy events
   // stored in `tactic` seed day 1 on first open.
   const [days, setDays] = useState<{ date: string; rows: TacticRow[] }[]>(() => {
-    if (!isFitnessIndoor) return [];
+    if (!multiDay) return [];
     const saved = event.tacticDays || [];
     // Days follow the event's start→end date range exactly; saved rows are
     // merged in for matching dates (stale saved days outside the range drop).
@@ -144,13 +146,15 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
   const [activeDate, setActiveDate] = useState(() => days[0]?.date ?? "");
   const [rowsState, setRowsState] = useState<TacticRow[]>(event.tactic || []);
   const [notes, setNotes] = useState(event.notes || "");
-  const [dirty, setDirty] = useState(false);
+  useAutosave(rowsState, patch, (v) => ({ tactic: v }));
+  useAutosave(days, patch, (v) => ({ tacticDays: v.filter((d) => d.rows.length) }));
+  useAutosave(notes, patch, (v) => ({ notes: v }));
 
-  const rows = isFitnessIndoor
+  const rows = multiDay
     ? (days.find((d) => d.date === activeDate)?.rows ?? [])
     : rowsState;
   const setRows = (fn: (rs: TacticRow[]) => TacticRow[]) => {
-    if (isFitnessIndoor) {
+    if (multiDay) {
       setDays((ds) => ds.map((d) => (d.date === activeDate ? { ...d, rows: fn(d.rows) } : d)));
     } else {
       setRowsState(fn);
@@ -162,17 +166,14 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
 
   function update(id: string, key: keyof TacticRow, value: string) {
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
-    setDirty(true);
   }
 
   function addRow(spot = "") {
     setRows((rs) => [...rs, newRow(spot)]);
-    setDirty(true);
   }
 
   function removeRow(id: string) {
     setRows((rs) => rs.filter((r) => r.id !== id));
-    setDirty(true);
   }
 
   function move(id: string, dir: -1 | 1) {
@@ -184,12 +185,10 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
       [next[i], next[j]] = [next[j], next[i]];
       return next;
     });
-    setDirty(true);
   }
 
   function generate() {
     setRows((rs) => [...rs, ...(isFitnessIndoor ? fitnessIndoorSkeleton() : ironmanSkeleton())]);
-    setDirty(true);
   }
 
   const unassigned = rows.filter((r) => !r.photographer).length;
@@ -203,7 +202,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
     <div className="mx-auto max-w-6xl space-y-4">
       <Card>
         <CardHeader
-          title={isFitnessIndoor && activeDate ? `Tactic — ${fmtDate(activeDate)} (${rows.length} spots)` : `Race tactic (${rows.length} spots)`}
+          title={multiDay && activeDate ? `Tactic — ${fmtDate(activeDate)} (${rows.length} spots)` : `Race tactic (${rows.length} spots)`}
           icon={<ClipboardList size={15} className="text-blue-600" />}
           action={
             <div className="flex items-center gap-2">
@@ -220,21 +219,6 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
               <Button size="sm" variant="outline" onClick={() => addRow()}>
                 <Plus size={14} /> Add spot
               </Button>
-              <Button
-                size="sm"
-                variant="accent"
-                loading={saving}
-                disabled={!dirty}
-                onClick={() =>
-                  patch(
-                    isFitnessIndoor
-                      ? { tacticDays: days.filter((d) => d.rows.length) }
-                      : { tactic: rows }
-                  ).then((ok) => ok && setDirty(false))
-                }
-              >
-                Save
-              </Button>
             </div>
           }
         />
@@ -250,7 +234,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
             </Notice>
           )}
 
-          {isFitnessIndoor && days.length > 1 && (
+          {multiDay && days.length > 1 && (
             <div className="mb-3 flex flex-wrap gap-1.5">
               {days.map((d) => (
                 <button
@@ -627,11 +611,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
             rows={5}
             placeholder={"# Race day notes\n- Support **bold**, *italic*, [links](https://…)\n- Headings with # ## ###\n- Bullet and numbered lists"}
           />
-          <div className="flex justify-end">
-            <Button size="sm" variant="accent" loading={saving} onClick={() => patch({ notes })}>
-              <Save size={13} /> Save notes
-            </Button>
-          </div>
+          <p className="text-xs text-slate-400">Autosaves as you type.</p>
         </div>
       </Card>
     </div>
