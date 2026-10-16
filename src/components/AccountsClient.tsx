@@ -20,14 +20,12 @@ export default function AccountsClient({ meId }: { meId: string }) {
 
   const [query, setQuery] = useState("");
 
-  // per-row reset form
-  const [resetId, setResetId] = useState("");
-  const [resetPw, setResetPw] = useState("");
   const [busy, setBusy] = useState("");
 
   // per-row edit form
   const [editId, setEditId] = useState("");
   const [editForm, setEditForm] = useState({ name: "", acronym: "", email: "" });
+  const [editPw, setEditPw] = useState("");
 
   async function load() {
     const res = await fetch("/api/accounts");
@@ -82,9 +80,8 @@ export default function AccountsClient({ meId }: { meId: string }) {
       return;
     }
     if (body.resetPassword) setNotice("Password reset — the user must set a new one on next sign-in.");
-    setResetId("");
-    setResetPw("");
     setEditId("");
+    setEditPw("");
     load();
   }
 
@@ -169,109 +166,90 @@ export default function AccountsClient({ meId }: { meId: string }) {
               );
             })
             .map((u) => (
-            <div key={u.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+            <div
+              key={u.id}
+              className={cn(
+                "flex items-center gap-3 px-4 py-3",
+                !u.active && "opacity-60"
+              )}
+            >
               {u.image ? (
                 // eslint-disable-next-line @next/next/no-img-element -- user-uploaded/blob URL
-                <img src={u.image} alt={u.name} className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                <img src={u.image} alt={u.name} className="h-9 w-9 shrink-0 rounded-full object-cover" />
               ) : (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">
                   {u.acronym.slice(0, 3)}
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-slate-900">
-                  {u.name}{" "}
-                  {u.role === "admin" && <Badge className="ml-1 bg-blue-100 text-blue-800">Admin</Badge>}
-                  {u.id === meId && <span className="ml-1 text-[10px] text-slate-400">(you)</span>}
+                <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-semibold text-slate-900">
+                  <span className="truncate">{u.name}</span>
+                  {u.id === meId && <span className="text-[10px] font-normal text-slate-400">(you)</span>}
+                  {u.role === "admin" && (
+                    <Badge className="bg-blue-100 text-blue-800">Admin</Badge>
+                  )}
+                  {u.active ? (
+                    u.mustChangePassword && (
+                      <Badge className="bg-amber-100 text-amber-800">Pending first login</Badge>
+                    )
+                  ) : (
+                    <Badge className="bg-slate-200 text-slate-500">Disabled</Badge>
+                  )}
                 </p>
                 <p className="truncate text-xs text-slate-500">
                   {u.email} · {u.acronym}
                   {u.createdAt ? ` · joined ${fmtDate(u.createdAt)}` : ""}
                 </p>
               </div>
-              <Badge className={cn(u.active ? "bg-emerald-50 text-emerald-700" : "bg-red-100 text-red-700")}>
-                {u.active ? "Active" : "Disabled"}
-              </Badge>
-              {u.mustChangePassword && u.active && (
-                <Badge className="bg-amber-100 text-amber-800">Pending first login</Badge>
-              )}
               {u.id !== meId && (
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <button
                     onClick={() => {
                       setEditId(u.id);
                       setEditForm({ name: u.name, acronym: u.acronym, email: u.email });
+                      setEditPw("");
                     }}
+                    title="Edit account"
+                    className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
                   >
-                    <Pencil size={13} /> Edit
-                  </Button>
-                  {resetId === u.id ? (
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        if (resetPw.length >= 8) patch(u.id, { resetPassword: resetPw });
-                      }}
-                      className="flex items-center gap-1"
-                    >
-                      <Input
-                        type="text"
-                        required
-                        minLength={8}
-                        autoFocus
-                        value={resetPw}
-                        onChange={(e) => setResetPw(e.target.value)}
-                        placeholder="New temp password"
-                        className="h-7 w-40 text-xs"
-                      />
-                      <Button type="submit" size="sm">Set</Button>
-                      <Button type="button" size="sm" variant="outline" onClick={() => setResetId("")}>
-                        Cancel
-                      </Button>
-                    </form>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      loading={busy === u.id}
-                      onClick={() => {
-                        setResetId(u.id);
-                        setResetPw("");
-                      }}
-                    >
-                      <KeyRound size={13} /> Reset
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    loading={busy === u.id}
+                    <Pencil size={15} />
+                  </button>
+                  <button
                     onClick={() =>
                       patch(u.id, { role: u.role === "admin" ? "team_leader" : "admin" })
                     }
-                    className={cn(u.role === "admin" ? "text-amber-600" : "text-blue-600")}
+                    disabled={busy === u.id}
+                    title={u.role === "admin" ? "Remove admin rights" : "Grant admin rights"}
+                    className={cn(
+                      "rounded-md p-1.5 transition-colors disabled:opacity-40",
+                      u.role === "admin"
+                        ? "text-amber-500 hover:bg-amber-50"
+                        : "text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+                    )}
                   >
-                    <UserCog size={13} /> {u.role === "admin" ? "Remove admin" : "Make admin"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    loading={busy === u.id}
+                    <UserCog size={15} />
+                  </button>
+                  <button
                     onClick={() => patch(u.id, { active: !u.active })}
-                    className={cn(u.active ? "text-red-600" : "text-emerald-600")}
+                    disabled={busy === u.id}
+                    title={u.active ? "Disable account" : "Enable account"}
+                    className={cn(
+                      "rounded-md p-1.5 transition-colors disabled:opacity-40",
+                      u.active
+                        ? "text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        : "text-emerald-500 hover:bg-emerald-50"
+                    )}
                   >
-                    <Power size={13} /> {u.active ? "Disable" : "Enable"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    loading={busy === u.id}
+                    <Power size={15} />
+                  </button>
+                  <button
                     onClick={() => remove(u)}
-                    className="text-red-600"
+                    disabled={busy === u.id}
+                    title="Delete account"
+                    className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
                   >
-                    <Trash2 size={13} /> Delete
-                  </Button>
+                    <Trash2 size={15} />
+                  </button>
                 </div>
               )}
             </div>
@@ -302,6 +280,7 @@ export default function AccountsClient({ meId }: { meId: string }) {
                   name: editForm.name,
                   acronym: editForm.acronym,
                   email: editForm.email,
+                  ...(editPw.trim() ? { resetPassword: editPw.trim() } : {}),
                 });
               }}
               className="grid gap-4 p-5"
@@ -333,6 +312,22 @@ export default function AccountsClient({ meId }: { meId: string }) {
                   onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                   placeholder="jane@sportograf.com"
                 />
+              <Field
+                label="New temporary password"
+                hint="Optional — leave blank to keep the current password. Min 8 chars; user must reset on next sign-in."
+              >
+                <div className="relative">
+                  <KeyRound size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    type="text"
+                    minLength={8}
+                    value={editPw}
+                    onChange={(e) => setEditPw(e.target.value)}
+                    placeholder="Leave blank to keep"
+                    className="pl-7"
+                  />
+                </div>
+              </Field>
               </Field>
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
                 <Button type="button" variant="outline" onClick={() => setEditId("")}>
