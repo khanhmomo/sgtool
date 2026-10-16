@@ -19,6 +19,7 @@ const patchSchema = z
       .optional(),
     email: z.string().email().optional(),
     active: z.boolean().optional(),
+    role: z.enum(["admin", "team_leader"]).optional(),
     resetPassword: z.string().min(8).max(100).optional(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: "Nothing to update" });
@@ -42,6 +43,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
   if (String(target._id) === admin.id && parsed.data.active === false) {
     return NextResponse.json({ error: "You cannot deactivate your own account." }, { status: 400 });
+  }
+  if (String(target._id) === admin.id && parsed.data.role === "team_leader") {
+    return NextResponse.json({ error: "You cannot remove your own admin status." }, { status: 400 });
   }
 
   const $set: Record<string, unknown> = {};
@@ -67,6 +71,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     $set.email = parsed.data.email.toLowerCase();
   }
   if (parsed.data.active !== undefined) $set.active = parsed.data.active;
+  if (parsed.data.role) $set.role = parsed.data.role;
   if (parsed.data.resetPassword) {
     $set.passwordHash = await bcrypt.hash(parsed.data.resetPassword, 10);
     $set.mustChangePassword = true;

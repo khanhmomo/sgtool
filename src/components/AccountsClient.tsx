@@ -247,6 +247,17 @@ export default function AccountsClient({ meId }: { meId: string }) {
                     size="sm"
                     variant="outline"
                     loading={busy === u.id}
+                    onClick={() =>
+                      patch(u.id, { role: u.role === "admin" ? "team_leader" : "admin" })
+                    }
+                    className={cn(u.role === "admin" ? "text-amber-600" : "text-blue-600")}
+                  >
+                    <UserCog size={13} /> {u.role === "admin" ? "Remove admin" : "Make admin"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    loading={busy === u.id}
                     onClick={() => patch(u.id, { active: !u.active })}
                     className={cn(u.active ? "text-red-600" : "text-emerald-600")}
                   >

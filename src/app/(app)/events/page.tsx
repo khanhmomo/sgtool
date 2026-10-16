@@ -3,8 +3,8 @@ import { Plus, CalendarDays, MapPin, ArrowRight } from "lucide-react";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { connectDB } from "@/lib/db";
-import { Event } from "@/lib/models";
-import { serializeEvent } from "@/lib/serialize";
+import { Event, User } from "@/lib/models";
+import { serializeEvent, serializeUser } from "@/lib/serialize";
 import { STATUS_META } from "@/lib/design";
 import { fmtDate } from "@/lib/utils";
 import { Badge, Button, Card, Empty } from "@/components/ui";
@@ -14,16 +14,24 @@ import AssignTl from "@/components/AssignTl";
 export const dynamic = "force-dynamic";
 
 export default async function EventsPage(props: {
-  searchParams: Promise<{ q?: string; status?: string; sort?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; sort?: string; tl?: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
-  const { q = "", status = "", sort = "desc" } = await props.searchParams;
+  const { q = "", status = "", sort = "desc", tl = "" } = await props.searchParams;
 
   await connectDB();
   const isAdmin = (session.user as { role?: string }).role === "admin";
   const filter: Record<string, unknown> = isAdmin ? {} : { ownerId: session.user.id };
   if (status) filter.status = status;
+  if (isAdmin && tl) filter.ownerId = tl;
+
+  // Admin-only: TL list for the "filter by team leader" select
+  const tls = isAdmin
+    ? (await User.find({ role: "team_leader", active: true }).sort({ name: 1 }).lean()).map(
+        serializeUser
+      )
+    : [];
   if (q) {
     filter.$or = [
       { name: { $regex: q, $options: "i" } },
@@ -51,7 +59,7 @@ export default async function EventsPage(props: {
         </Link>
       </div>
 
-      <EventsFilter q={q} status={status} sort={sort} />
+      <EventsFilter q={q} status={status} sort={sort} tl={tl} tls={tls} />
 
       {events.length === 0 ? (
         <Empty

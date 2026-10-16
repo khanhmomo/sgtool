@@ -5,8 +5,23 @@ import { useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { Select } from "@/components/ui";
 import { STATUS_META } from "@/lib/design";
+import type { UserDTO } from "@/types";
 
-export default function EventsFilter({ q, status, sort }: { q: string; status: string; sort: string }) {
+export default function EventsFilter({
+  q,
+  status,
+  sort,
+  tl = "",
+  tls = [],
+}: {
+  q: string;
+  status: string;
+  sort: string;
+  /** Current TL filter (admin only) */
+  tl?: string;
+  /** Active team leaders (admin only; empty hides the select) */
+  tls?: UserDTO[];
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const [value, setValue] = useState(q);
@@ -18,7 +33,7 @@ export default function EventsFilter({ q, status, sort }: { q: string; status: s
     debounce.current = setTimeout(() => go({ q: v.trim() }), 300);
   }
 
-  function go(next: { q?: string; status?: string; sort?: string }) {
+  function go(next: { q?: string; status?: string; sort?: string; tl?: string }) {
     const p = new URLSearchParams(params.toString());
     if (next.q !== undefined) {
       if (next.q) p.set("q", next.q);
@@ -31,6 +46,10 @@ export default function EventsFilter({ q, status, sort }: { q: string; status: s
     if (next.sort !== undefined) {
       if (next.sort && next.sort !== "desc") p.set("sort", next.sort);
       else p.delete("sort");
+    }
+    if (next.tl !== undefined) {
+      if (next.tl) p.set("tl", next.tl);
+      else p.delete("tl");
     }
     router.push(`/events?${p.toString()}`);
   }
@@ -60,6 +79,16 @@ export default function EventsFilter({ q, status, sort }: { q: string; status: s
           </option>
         ))}
       </Select>
+      {tls.length > 0 && (
+        <Select value={tl} onChange={(e) => go({ tl: e.target.value })} className="w-44">
+          <option value="">All team leaders</option>
+          {tls.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name} ({u.acronym})
+            </option>
+          ))}
+        </Select>
+      )}
       <Select value={sort} onChange={(e) => go({ sort: e.target.value })} className="w-40">
         <option value="desc">Newest first</option>
         <option value="asc">Oldest first</option>
