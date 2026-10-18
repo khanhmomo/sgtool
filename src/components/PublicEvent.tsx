@@ -110,9 +110,6 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   const legs = event.course?.legs || [];
   const isFitnessIndoor = /fitness\s*indoor/i.test(event.type);
 
-  // morning call-time entries: schedule items titled e.g. "Call time", "Meet at…"
-  const callTimes = event.schedule.filter((s) => /call|meet|brief/i.test(s.title));
-
   /** "7:30 AM" → minutes since midnight for sorting; unparseable → +∞ */
   const timeToMin = (t: string) => {
     const m = t.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
@@ -184,8 +181,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   const nav = [
     { id: "briefing", label: "Briefing", icon: Megaphone, show: !!event.briefing?.trim() },
     { id: "venue", label: "Venue", icon: MapPin, show: !!event.venue.name },
-    { id: "calltime", label: "Call time", icon: AlarmClock, show: callTimes.length > 0 },
-    { id: "tactic", label: "Tactic", icon: Target, show: (event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0) || (event.hyrox || []).length > 0 },
+    { id: "tactic", label: "Tactic", icon: Target, show: (event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0 || d.callTime || d.note) || (event.hyrox || []).length > 0 },
     { id: "course", label: "Course", icon: RouteIcon, show: legs.length > 0 },
     { id: "files", label: "Files", icon: FolderOpen, show: files.length > 0 },
     { id: "hotel", label: "Hotel", icon: BedDouble, show: event.hotels.some((h) => h.name) },
@@ -285,23 +281,6 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
           </Section>
         )}
 
-        {/* Call time — fixed banner card */}
-        {callTimes.length > 0 && (
-          <section id="calltime" className="scroll-mt-20 lg:col-span-2">
-            <Card className="flex items-center gap-3 px-4 py-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-600">
-                <AlarmClock size={16} />
-              </span>
-              <p className="text-sm text-slate-700">
-                <span className="font-bold text-slate-900">Call time:</span>{" "}
-                <span className="font-bold text-blue-700">{callTimes[0].time}</span>
-                {callTimes[0].detail && (
-                  <span className="ml-2 text-xs text-slate-500">{callTimes[0].detail}</span>
-                )}
-              </p>
-            </Card>
-          </section>
-        )}
         </div>
 
         {/* Briefing */}
@@ -338,7 +317,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
               callTime={(event.hyrox[hyroxDay] || event.hyrox[0]).callTime}
             />
           </Section>
-        ) : ((event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0)) && (
+        ) : ((event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0 || d.callTime || d.note)) && (
           <Section id="tactic" icon={<Target size={16} />} title="Tactic">
             {(event.tacticDays || []).length > 1 && (
               <div className="mb-3 flex flex-wrap items-center gap-1.5">

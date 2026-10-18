@@ -124,8 +124,12 @@ function dateRange(start: string, end: string): string[] {
 export default function TacticTab({ event, patch, setEvent, saving }: TabProps) {
   const isIronman = /ironman|triathlon/i.test(event.type);
   const isFitnessIndoor = /fitness\s*indoor/i.test(event.type);
-  // Obstacle races also span multiple days — they get the per-day tactic tables too
-  const multiDay = isFitnessIndoor || /obstacle/i.test(event.type);
+  // Any event spanning 2+ calendar days gets per-day tactic tables (each with its
+  // own call time + day note) — plus the known multi-day types as a fallback for
+  // events missing an endDate.
+  const eventEnd = (event.endDate || "").slice(0, 10);
+  const spansDays = !!eventEnd && eventEnd > event.date.slice(0, 10);
+  const multiDay = spansDays || isFitnessIndoor || /obstacle/i.test(event.type);
 
   // Fitness Indoor: one tactic table per event day (tacticDays). Legacy events
   // stored in `tactic` seed day 1 on first open.
@@ -243,24 +247,27 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
             </Notice>
           )}
 
-          {multiDay && days.length > 1 && (
+          {multiDay && (
             <div className="mb-3 flex flex-wrap items-center gap-1.5">
-              {days.map((d) => (
-                <button
-                  key={d.date || "day"}
-                  onClick={() => setActiveDate(d.date)}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    d.date === activeDate
-                      ? "bg-slate-900 text-white"
-                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
-                  }`}
-                >
-                  {d.date ? fmtDate(d.date) : "Unscheduled"}
-                </button>
-              ))}
+              {days.length > 1 &&
+                days.map((d) => (
+                  <button
+                    key={d.date || "day"}
+                    onClick={() => setActiveDate(d.date)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      d.date === activeDate
+                        ? "bg-slate-900 text-white"
+                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {d.date ? fmtDate(d.date) : "Unscheduled"}
+                  </button>
+                ))}
               <div className="ml-auto flex items-center gap-1.5">
                 <AlarmClock size={13} className="text-slate-400" />
-                <span className="text-xs text-slate-500">Call time</span>
+                <span className="text-xs text-slate-500">
+                  Call time{days.length > 1 && activeDate ? ` — ${fmtDate(activeDate)}` : ""}
+                </span>
                 <Input
                   type="time"
                   value={days.find((d) => d.date === activeDate)?.callTime || ""}
@@ -571,52 +578,6 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
               </table>
             </div>
           )}
-        </div>
-      </Card>
-
-      {/* Call time — shown on the photographer page; stored as a schedule item */}
-      <Card>
-        <CardHeader title="Call time" icon={<AlarmClock size={15} className="text-blue-600" />} />
-        <div className="flex flex-wrap items-end gap-3 p-4">
-          {(() => {
-            const ct = event.schedule.find((s) => /call|meet|brief/i.test(s.title));
-            const setCall = (time: string, detail: string) => {
-              const item = {
-                id: ct?.id ?? uid(),
-                day: "Race day",
-                time,
-                title: "Call time",
-                detail,
-              };
-              return patch({
-                schedule: ct
-                  ? event.schedule.map((s) => (s.id === ct.id ? item : s))
-                  : [...event.schedule, item],
-              });
-            };
-            return (
-              <>
-                <div>
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Time</p>
-                  <Input
-                    type="time"
-                    defaultValue={to24(ct?.time || "")}
-                    onBlur={(e) => setCall(from24(e.target.value), ct?.detail || "")}
-                    className="h-8 w-28 px-2 text-xs"
-                  />
-                </div>
-                <div className="min-w-52 flex-1">
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Where</p>
-                  <Input
-                    defaultValue={ct?.detail || ""}
-                    onBlur={(e) => setCall(ct?.time || "", e.target.value)}
-                    placeholder="Meet at venue entrance…"
-                    className="h-8 text-xs"
-                  />
-                </div>
-              </>
-            );
-          })()}
         </div>
         {multiDay && (
           <div className="border-t border-slate-100 px-4 py-3">
