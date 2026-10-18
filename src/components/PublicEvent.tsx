@@ -333,13 +333,18 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                     )}
                   >
                     {d.date ? fmtDate(d.date) : `Day ${i + 1}`}
+                    {d.callTime && (
+                      <span
+                        className={cn(
+                          "ml-1.5 inline-flex items-center gap-1 font-bold",
+                          i === tacticDay ? "text-blue-300" : "text-blue-600"
+                        )}
+                      >
+                        <AlarmClock size={11} /> {d.callTime}
+                      </span>
+                    )}
                   </button>
                 ))}
-                {(event.tacticDays[tacticDay] || event.tacticDays[0])?.callTime && (
-                  <span className="ml-auto inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
-                    <AlarmClock size={12} /> Call {(event.tacticDays[tacticDay] || event.tacticDays[0]).callTime}
-                  </span>
-                )}
               </div>
             )}
             <div className="mb-2 flex items-center justify-end gap-3">
@@ -469,12 +474,26 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                 </tbody>
               </table>
             </div>
-            {(event.tacticDays[tacticDay] || event.tacticDays[0])?.note && (
-              <Markdown
-                text={(event.tacticDays[tacticDay] || event.tacticDays[0]).note!}
-                className="mt-3 border-t border-slate-100 pt-3 text-xs"
-              />
-            )}
+            {(() => {
+              const day = event.tacticDays[tacticDay] || event.tacticDays[0];
+              const withCall = (event.tacticDays || []).filter((d) => d.callTime);
+              return (
+                <>
+                  {withCall.length > 0 && (
+                    <div className="mt-3 space-y-1 border-t border-slate-100 pt-3">
+                      {withCall.map((d) => (
+                        <p key={d.date} className="flex items-center gap-1.5 text-xs font-bold text-blue-700">
+                          <AlarmClock size={13} /> {d.date ? fmtDate(d.date) : "Day"} — Call time {d.callTime}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {day?.note && (
+                    <Markdown text={day.note} className="mt-3 border-t border-slate-100 pt-3 text-xs" />
+                  )}
+                </>
+              );
+            })()}
           </Section>
         )}
 
