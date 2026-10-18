@@ -122,6 +122,8 @@ export interface TacticRow {
 export interface TacticDay {
   date: string; // YYYY-MM-DD
   rows: TacticRow[];
+  callTime?: string; // "HH:MM" — crew call time for this day
+  note?: string; // general note for this day's tactic (markdown-lite)
 }
 
 export interface CoursePoint {

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input, Select, Textarea, Notice } from "@/components/ui";
 import { uid, googleMapsUrl, fmtDate } from "@/lib/utils";
-import type { TacticRow } from "@/types";
+import type { TacticDay, TacticRow } from "@/types";
 import type { TabProps } from "./EventWorkspace";
 import HyroxTactic from "./HyroxTactic";
 import { useAutosave } from "./autosave";
@@ -129,30 +129,39 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
 
   // Fitness Indoor: one tactic table per event day (tacticDays). Legacy events
   // stored in `tactic` seed day 1 on first open.
-  const [days, setDays] = useState<{ date: string; rows: TacticRow[] }[]>(() => {
+  const [days, setDays] = useState<TacticDay[]>(() => {
     if (!multiDay) return [];
     const saved = event.tacticDays || [];
     // Days follow the event's start→end date range exactly; saved rows are
     // merged in for matching dates (stale saved days outside the range drop).
     const range = dateRange(event.date.slice(0, 10), (event.endDate || "").slice(0, 10));
     const sorted = range.length ? range : [saved[0]?.date || ""];
-    return sorted.map((date, i) => ({
-      date,
-      rows:
-        saved.find((d) => d.date === date)?.rows ??
-        (i === 0 && !saved.length ? event.tactic || [] : []),
-    }));
+    return sorted.map((date, i) => {
+      const match = saved.find((d) => d.date === date);
+      return {
+        date,
+        rows: match?.rows ?? (i === 0 && !saved.length ? event.tactic || [] : []),
+        callTime: match?.callTime || "",
+        note: match?.note || "",
+      };
+    });
   });
   const [activeDate, setActiveDate] = useState(() => days[0]?.date ?? "");
   const [rowsState, setRowsState] = useState<TacticRow[]>(event.tactic || []);
   const [notes, setNotes] = useState(event.notes || "");
   useAutosave(rowsState, patch, (v) => ({ tactic: v }));
-  useAutosave(days, patch, (v) => ({ tacticDays: v.filter((d) => d.rows.length) }));
+  useAutosave(days, patch, (v) => ({
+    tacticDays: v.filter((d) => d.rows.length || d.callTime || d.note),
+  }));
   useAutosave(notes, patch, (v) => ({ notes: v }));
 
   const rows = multiDay
     ? (days.find((d) => d.date === activeDate)?.rows ?? [])
     : rowsState;
+  const setDayField = (key: "callTime" | "note", value: string) => {
+    if (!multiDay) return;
+    setDays((ds) => ds.map((d) => (d.date === activeDate ? { ...d, [key]: value } : d)));
+  };
   const setRows = (fn: (rs: TacticRow[]) => TacticRow[]) => {
     if (multiDay) {
       setDays((ds) => ds.map((d) => (d.date === activeDate ? { ...d, rows: fn(d.rows) } : d)));
@@ -235,7 +244,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
           )}
 
           {multiDay && days.length > 1 && (
-            <div className="mb-3 flex flex-wrap gap-1.5">
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
               {days.map((d) => (
                 <button
                   key={d.date || "day"}
@@ -249,6 +258,16 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                   {d.date ? fmtDate(d.date) : "Unscheduled"}
                 </button>
               ))}
+              <div className="ml-auto flex items-center gap-1.5">
+                <AlarmClock size={13} className="text-slate-400" />
+                <span className="text-xs text-slate-500">Call time</span>
+                <Input
+                  type="time"
+                  value={days.find((d) => d.date === activeDate)?.callTime || ""}
+                  onChange={(e) => setDayField("callTime", e.target.value)}
+                  className="h-7 w-28 text-xs"
+                />
+              </div>
             </div>
           )}
 
@@ -599,6 +618,19 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
             );
           })()}
         </div>
+        {multiDay && (
+          <div className="border-t border-slate-100 px-4 py-3">
+            <p className="mb-1.5 text-xs font-semibold text-slate-500">
+              Day note {activeDate ? `— ${fmtDate(activeDate)}` : ""}
+            </p>
+            <Textarea
+              value={days.find((d) => d.date === activeDate)?.note || ""}
+              onChange={(e) => setDayField("note", e.target.value)}
+              rows={2}
+              placeholder="Note for this day's tactic (weather, venue access, shift plan…)"
+            />
+          </div>
+        )}
       </Card>
 
       {/* General notes */}

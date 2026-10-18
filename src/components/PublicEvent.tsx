@@ -341,7 +341,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         ) : ((event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0)) && (
           <Section id="tactic" icon={<Target size={16} />} title="Tactic">
             {(event.tacticDays || []).length > 1 && (
-              <div className="mb-3 flex flex-wrap gap-1.5">
+              <div className="mb-3 flex flex-wrap items-center gap-1.5">
                 {event.tacticDays.map((d, i) => (
                   <button
                     key={d.date || i}
@@ -356,6 +356,11 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                     {d.date ? fmtDate(d.date) : `Day ${i + 1}`}
                   </button>
                 ))}
+                {(event.tacticDays[tacticDay] || event.tacticDays[0])?.callTime && (
+                  <span className="ml-auto inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
+                    <AlarmClock size={12} /> Call {(event.tacticDays[tacticDay] || event.tacticDays[0]).callTime}
+                  </span>
+                )}
               </div>
             )}
             <div className="mb-2 flex items-center justify-end gap-3">
@@ -383,6 +388,12 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                 {!isFitnessIndoor && <option value="arrival">Arrival time</option>}
               </select>
             </div>
+            {(event.tacticDays || []).length <= 1 &&
+              (event.tacticDays[0]?.callTime) && (
+                <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
+                  <AlarmClock size={12} /> Call {event.tacticDays[0].callTime}
+                </p>
+              )}
             <div className="overflow-x-auto rounded-md border border-slate-200">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -479,6 +490,12 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                 </tbody>
               </table>
             </div>
+            {(event.tacticDays[tacticDay] || event.tacticDays[0])?.note && (
+              <Markdown
+                text={(event.tacticDays[tacticDay] || event.tacticDays[0]).note!}
+                className="mt-3 border-t border-slate-100 pt-3 text-xs"
+              />
+            )}
           </Section>
         )}
 
