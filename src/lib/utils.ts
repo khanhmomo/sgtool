@@ -55,6 +55,22 @@ export function googleMapsUrl(lat: number, lng: number): string {
   return `https://www.google.com/maps?q=loc:${p.lat},${p.lng}`;
 }
 
+/** South Korea bounding box — Google Maps has poor coverage there; Naver is standard. */
+export function isInSouthKorea(lat: number, lng: number): boolean {
+  return lat >= 33.0 && lat <= 38.7 && lng >= 124.5 && lng <= 132.0;
+}
+
+/** Naver Maps pin — `pinType=site` drops a real marker at the coords; the mobile
+ *  share URL redirects to the full map on desktop. */
+export function naverMapsUrl(lat: number, lng: number): string {
+  return `https://m.map.naver.com/map.naver?lng=${lng}&lat=${lat}&dLevel=14&pinType=site`;
+}
+
+/** Best map link for a coordinate: Naver for South Korea, Google elsewhere. */
+export function spotMapUrl(lat: number, lng: number): string {
+  return isInSouthKorea(lat, lng) ? naverMapsUrl(lat, lng) : googleMapsUrl(lat, lng);
+}
+
 export function isImageMime(mime: string): boolean {
   return /^image\/(png|jpe?g|webp|gif|avif)$/i.test(mime);
 }

@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { Badge, Card } from "@/components/ui";
 import { STATUS_META, SPORT_META } from "@/lib/design";
-import { fmtDate, isImageMime, isPdfMime, cn, googleMapsUrl } from "@/lib/utils";
+import { fmtDate, isImageMime, isPdfMime, cn, spotMapUrl } from "@/lib/utils";
 import Markdown from "@/components/Markdown";
 import { FileTypeBadge, Lightbox, PdfViewer } from "@/components/FileViewers";
 import type { EventDTO, FileDTO } from "@/types";
@@ -403,7 +403,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                     );
                     // Prefer live position coords — stored mapLinks from before
                     // the loc: fix still snap to the nearest named place.
-                    const link = pos ? googleMapsUrl(pos.lat!, pos.lng!) : r.mapLink;
+                    const link = pos ? spotMapUrl(pos.lat!, pos.lng!) : r.mapLink;
                     return (
                       <tr
                         key={r.id}

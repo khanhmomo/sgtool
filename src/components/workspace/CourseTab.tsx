@@ -30,7 +30,7 @@ import {
   Select,
 } from "@/components/ui";
 import { SPORT_META } from "@/lib/design";
-import { cn, fmtDistances, googleMapsUrl, uid } from "@/lib/utils";
+import { cn, fmtDistances, spotMapUrl, uid } from "@/lib/utils";
 import { analyzePosition } from "@/lib/geo";
 import { buildLeg } from "@/lib/gpx";
 import { extractCoords, parseLatLngText } from "@/lib/coords";
@@ -159,7 +159,7 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
   async function addPreSpot(ps: PreSpot) {
     const p = newPosition(ps.lat, ps.lng);
     p.photographer = ps.name; // spot name
-    p.mapLink = googleMapsUrl(ps.lat, ps.lng);
+    p.mapLink = spotMapUrl(ps.lat, ps.lng);
     let newId = ps.name.trim() || p.id;
     for (let n = 2; positions.some((x) => x.id === newId); n++) newId = `${ps.name} (${n})`;
     p.id = newId;
@@ -275,7 +275,7 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
       distances,
       lat: lat ?? null,
       lng: lng ?? null,
-      mapLink: lat !== undefined && lng !== undefined ? googleMapsUrl(lat, lng) : "",
+      mapLink: lat !== undefined && lng !== undefined ? spotMapUrl(lat, lng) : "",
       notes: "",
       status: "draft",
       __isNew: true,
@@ -343,7 +343,7 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
           photographer: "",
           lens: "",
           arrival: "",
-          mapLink: clean.mapLink || (clean.lat != null && clean.lng != null ? googleMapsUrl(clean.lat, clean.lng) : ""),
+          mapLink: clean.mapLink || (clean.lat != null && clean.lng != null ? spotMapUrl(clean.lat, clean.lng) : ""),
           note: "",
           color: "",
           ls: "",
@@ -705,8 +705,8 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
                   </button>
                   {p.lat !== null && p.lng !== null && (
                     <a
-                      title="Open in Google Maps"
-                      href={googleMapsUrl(p.lat, p.lng)}
+                      title="Open in Maps"
+                      href={spotMapUrl(p.lat, p.lng)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
@@ -755,8 +755,8 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
                   </Button>
                 )}
                 <a
-                  title="Open in Google Maps"
-                  href={googleMapsUrl(ps.lat, ps.lng)}
+                  title="Open in Maps"
+                  href={spotMapUrl(ps.lat, ps.lng)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"

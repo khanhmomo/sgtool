@@ -19,6 +19,8 @@ function outOfChina(lat: number, lng: number): boolean {
   if (lng >= 119.3 && lng <= 122.1 && lat >= 21.8 && lat <= 25.4) return true;
   // Hong Kong + Macau
   if (lng >= 113.5 && lng <= 114.45 && lat >= 22.1 && lat <= 22.6) return true;
+  // Korean peninsula — Google Korea uses WGS-84 and Naver is the local standard
+  if (lng >= 124.5 && lng <= 132.0 && lat >= 33.0 && lat <= 38.7) return true;
   return false;
 }
 

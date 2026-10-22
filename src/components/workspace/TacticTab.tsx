@@ -11,7 +11,7 @@ import {
   AlarmClock,
 } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input, Select, Textarea, Notice } from "@/components/ui";
-import { uid, googleMapsUrl, fmtDate } from "@/lib/utils";
+import { uid, spotMapUrl, fmtDate } from "@/lib/utils";
 import type { TacticDay, TacticRow } from "@/types";
 import type { TabProps } from "./EventWorkspace";
 import HyroxTactic from "./HyroxTactic";
@@ -429,7 +429,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                                     const pos = withCoords.find((p) => p.id === v);
                                     if (pos) {
                                       update(r.id, "spot", pos.photographer || pos.id);
-                                      update(r.id, "mapLink", googleMapsUrl(pos.lat!, pos.lng!));
+                                      update(r.id, "mapLink", spotMapUrl(pos.lat!, pos.lng!));
                                     }
                                   }}
                                   className="h-8 w-44 text-xs font-semibold"
