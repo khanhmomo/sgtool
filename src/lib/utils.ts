@@ -50,7 +50,9 @@ export function slugify(s: string): string {
 export function googleMapsUrl(lat: number, lng: number): string {
   // Google renders China in GCJ-02 — convert so the pin lands on the right spot
   const p = wgs84ToGcj02(lat, lng);
-  return `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`;
+  // `loc:` forces an exact pin — a plain search query snaps to the nearest
+  // named place/road, which can land the pin ~500m off the real spot.
+  return `https://www.google.com/maps?q=loc:${p.lat},${p.lng}`;
 }
 
 export function isImageMime(mime: string): boolean {

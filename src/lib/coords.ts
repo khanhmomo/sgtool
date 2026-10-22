@@ -11,7 +11,15 @@ export interface ParsedCoords {
 // markers align with Leaflet/OSM tiles and course analysis stays correct.
 
 function outOfChina(lat: number, lng: number): boolean {
-  return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
+  // GCJ-02 ("Mars" datum) is used by Google only for mainland China. The coarse
+  // bounding box also covers Taiwan / HK / Macau, where Google uses WGS-84 —
+  // applying the shift there offsets the pin by ~500m. Exclude those regions.
+  if (lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271) return true;
+  // Taiwan
+  if (lng >= 119.3 && lng <= 122.1 && lat >= 21.8 && lat <= 25.4) return true;
+  // Hong Kong + Macau
+  if (lng >= 113.5 && lng <= 114.45 && lat >= 22.1 && lat <= 22.6) return true;
+  return false;
 }
 
 function transformLat(x: number, y: number): number {

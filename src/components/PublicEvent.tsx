@@ -401,7 +401,9 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                     const pos = (event.positions || []).find(
                       (p) => p.lat !== null && p.lng !== null && (p.photographer || p.id) === r.spot
                     );
-                    const link = r.mapLink || (pos ? googleMapsUrl(pos.lat!, pos.lng!) : "");
+                    // Prefer live position coords — stored mapLinks from before
+                    // the loc: fix still snap to the nearest named place.
+                    const link = pos ? googleMapsUrl(pos.lat!, pos.lng!) : r.mapLink;
                     return (
                       <tr
                         key={r.id}
