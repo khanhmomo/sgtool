@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, BookOpen, Copy, Download, Plus, Trash2, Users, X } from "lucide-react";
+import { AlarmClock, AlertTriangle, BookOpen, Copy, Download, Plus, Trash2, Users, X } from "lucide-react";
 import { Button, Card, CardHeader, Input, Textarea } from "@/components/ui";
 import { cn, fmtDate, uid } from "@/lib/utils";
 import Markdown from "@/components/Markdown";
@@ -213,7 +213,7 @@ const fmtT = (t: string) => {
 };
 
 /** Read-only tactic view for the photographer site */
-export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic; team?: string[]; callTime?: string }) {
+export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: HyroxTactic; team?: string[]; callTime?: string; dayNote?: string }) {
   const shifts = hyrox.shifts || [];
   const groups = hyrox.switchGroups || [];
   const breaks = hyrox.breaks || [];
@@ -227,6 +227,11 @@ export function HyroxPublicView({ hyrox, team, callTime }: { hyrox: HyroxTactic;
         <div className="inline-flex items-center gap-2 rounded-md bg-black px-3 py-2">
           <span className="text-[10px] font-bold uppercase tracking-wider text-[#FFED00]">Call time</span>
           <span className="text-sm font-black text-[#FFED00]">{fmtT(callTime)}</span>
+        </div>
+      )}
+      {dayNote?.trim() && (
+        <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+          <Markdown text={dayNote} />
         </div>
       )}
       {shifts.map((stations, si) => (
@@ -552,6 +557,12 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
 
   const setCallTime = (v: string) => {
     const nextDays = days.map((d) => (d.date === activeDate ? { ...d, callTime: v } : d));
+    setDays(nextDays);
+    saveDays(nextDays);
+  };
+
+  const setDayNote = (v: string) => {
+    const nextDays = days.map((d) => (d.date === activeDate ? { ...d, note: v } : d));
     setDays(nextDays);
     saveDays(nextDays);
   };
@@ -1041,6 +1052,31 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
             value={tactic.breakNote || ""}
             onChange={(v) => touch({ ...tactic, breakNote: v })}
           />
+        </div>
+      </Card>
+
+      {/* Day note — same editor style as the briefing */}
+      <Card>
+        <CardHeader
+          title={`Day note — ${fmtDate(activeDate)}`}
+          icon={<AlarmClock size={15} className="text-blue-600" />}
+        />
+        <div className="px-4 pb-4">
+          <Textarea
+            rows={4}
+            value={day?.note || ""}
+            onChange={(e) => setDayNote(e.target.value)}
+            placeholder={"# Day note\n\n- Meet 08:00 at the east gate…\n- Lunch 12:00–13:00…"}
+            className="font-mono text-xs"
+          />
+          <p className="mt-1.5 text-xs text-slate-400">
+            Supports # headings, - bullets, **bold**, [links](url). Shown on the photographer page for this day.
+          </p>
+          {day?.note?.trim() && (
+            <div className="mt-3 rounded-md border border-slate-100 bg-slate-50 p-3">
+              <Markdown text={day.note} />
+            </div>
+          )}
         </div>
       </Card>
 

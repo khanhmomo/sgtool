@@ -385,6 +385,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
               hyrox={(hyroxDays[hyroxDay] || hyroxDays[0]).tactic}
               team={event.photographers.map((p) => p.acronym || p.name)}
               callTime={(hyroxDays[hyroxDay] || hyroxDays[0]).callTime}
+              dayNote={(hyroxDays[hyroxDay] || hyroxDays[0]).note}
             />
           </Section>
         ) : ((event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0 || d.callTime || d.note)) && (
