@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import {
@@ -22,10 +22,13 @@ import {
   Images,
   Megaphone,
   MessageSquarePlus,
+  Timer,
 } from "lucide-react";
 import { Badge, Card } from "@/components/ui";
 import { STATUS_META, SPORT_META } from "@/lib/design";
 import { fmtDate, isImageMime, isPdfMime, cn, spotMapUrl } from "@/lib/utils";
+import { extractCoords } from "@/lib/coords";
+import tzLookup from "tz-lookup";
 import Markdown from "@/components/Markdown";
 import { FileTypeBadge, Lightbox, PdfViewer } from "@/components/FileViewers";
 import type { EventDTO, FileDTO } from "@/types";
@@ -35,6 +38,15 @@ const CourseMap = dynamic(() => import("@/components/CourseMap"), { ssr: false }
 
 /** Thumbnails shown before "+N more" opens the lightbox */
 const PREVIEW_COUNT = 12;
+
+/** Dark row backgrounds need white text; light/default rows keep slate-900. */
+function contrastFg(bg: string): string | undefined {
+  const m = bg.match(/#([0-9a-f]{6})/i);
+  if (!m) return undefined;
+  const n = parseInt(m[1], 16);
+  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.55 ? undefined : "#ffffff";
+}
 
 function Section({
   id,
@@ -151,6 +163,30 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   const [reqOpen, setReqOpen] = useState(false);
   const [reqForm, setReqForm] = useState({ name: "", acronym: "", body: "" });
   const [reqState, setReqState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [clockOpen, setClockOpen] = useState(false);
+  const [now, setNow] = useState(() => new Date());
+
+  // Event-local timezone: venue map-link coords → first spot coords → device
+  const eventTz = (() => {
+    const c =
+      extractCoords(event.venue?.mapLink || "") ||
+      (event.positions || []).find((p) => p.lat != null && p.lng != null);
+    const lat = c && "lat" in c ? c.lat : undefined;
+    const lng = c && "lng" in c ? c.lng : undefined;
+    if (lat == null || lng == null) return undefined;
+    try {
+      return tzLookup(lat, lng);
+    } catch {
+      return undefined;
+    }
+  })();
+
+  // Tick the camera-check clock at 250ms so seconds flip promptly
+  useEffect(() => {
+    if (!clockOpen) return;
+    const t = setInterval(() => setNow(new Date()), 250);
+    return () => clearInterval(t);
+  }, [clockOpen]);
 
   async function sendRequest() {
     setReqState("sending");
@@ -219,12 +255,20 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
             )}
             <span className="text-slate-400">TL: {event.ownerAcronym}</span>
           </div>
-          <button
-            onClick={() => setReqOpen(true)}
-            className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500"
-          >
-            <MessageSquarePlus size={14} /> Make request
-          </button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => setReqOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500"
+            >
+              <MessageSquarePlus size={14} /> Make request
+            </button>
+            <button
+              onClick={() => { setNow(new Date()); setClockOpen(true); }}
+              className="inline-flex items-center gap-1.5 rounded-md bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700"
+            >
+              <Timer size={14} /> Camera check
+            </button>
+          </div>
         </div>
       </header>
 
@@ -404,13 +448,18 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                     // Prefer live position coords — stored mapLinks from before
                     // the loc: fix still snap to the nearest named place.
                     const link = pos ? spotMapUrl(pos.lat!, pos.lng!) : r.mapLink;
+                    // White text on dark row colors (red/blue/violet), else default
+                    const fg = r.color ? contrastFg(r.color) : undefined;
+                    const fgStyle = fg ? { color: fg } : undefined;
                     return (
                       <tr
                         key={r.id}
                         style={r.color ? { background: r.color } : undefined}
                         className="border-b border-slate-100 last:border-0 align-top"
                       >
-                        <td className="px-3 py-2 font-bold text-slate-900">{r.spot}</td>
+                        <td className="min-w-28 max-w-44 px-3 py-2 font-bold text-slate-900" style={fgStyle}>
+                          <span className="break-words">{r.spot}</span>
+                        </td>
                         <td className="px-3 py-2">
                           {mates.length ? (
                             <div className="flex flex-wrap items-center gap-1.5">
@@ -420,7 +469,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                                     {a}
                                   </span>
                                   {p?.name && (
-                                    <span className="ml-1 whitespace-nowrap font-bold text-slate-900">{p.name}</span>
+                                    <span className="ml-1 font-bold text-slate-900" style={fgStyle}>{p.name}</span>
                                   )}
                                 </span>
                               ))}
@@ -447,9 +496,9 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                             )}
                           </td>
                         )}
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900">{r.lens || "—"}</td>
+                        <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900" style={fgStyle}>{r.lens || "—"}</td>
                         {!isFitnessIndoor && (
-                          <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900">
+                          <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900" style={fgStyle}>
                             {r.arrival || "—"}
                           </td>
                         )}
@@ -469,7 +518,9 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                             )}
                           </td>
                         )}
-                        <td className="px-3 py-2 text-slate-900">{r.note || "—"}</td>
+                        <td className="px-3 py-2 text-slate-900" style={fgStyle}>
+                          <span className="break-words">{r.note || "—"}</span>
+                        </td>
                       </tr>
                     );
                   })}
@@ -769,6 +820,44 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Camera check — atomic-clock modal for syncing camera time */}
+      {clockOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 p-4"
+          onClick={() => setClockOpen(false)}
+        >
+          <div className="w-full max-w-md text-center" onClick={(e) => e.stopPropagation()}>
+            <p className="text-xs font-bold uppercase tracking-[0.3em] text-blue-400">Camera check</p>
+            <p className="mt-6 whitespace-nowrap font-mono text-5xl font-bold tabular-nums text-white md:text-6xl">
+              {now
+                .toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: eventTz })
+                .replace(/ ?([AP]M)$/i, "")}
+              <span className="ml-2 text-3xl font-semibold text-blue-400 md:text-4xl">
+                {now.toLocaleTimeString("en-US", { hour: "numeric", hour12: true, timeZone: eventTz }).replace(/^\d+ ?/i, "")}
+              </span>
+            </p>
+            <p className="mt-4 font-mono text-lg text-slate-300">
+              {now.toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: eventTz })}
+            </p>
+            <p className="mt-6 flex items-center justify-center gap-1.5 text-sm font-semibold text-slate-400">
+              <MapPin size={14} className="text-blue-400" />
+              {[event.location, event.country].filter(Boolean).join(", ") || event.name}
+            </p>
+            <p className="mt-1 text-[11px] text-slate-500">
+              {eventTz
+                ? `Event local time · ${eventTz.replace(/_/g, " ")}`
+                : `Device clock · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`}
+            </p>
+            <button
+              onClick={() => setClockOpen(false)}
+              className="mt-8 rounded-md bg-slate-800 px-6 py-2.5 text-xs font-semibold text-white hover:bg-slate-700"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}

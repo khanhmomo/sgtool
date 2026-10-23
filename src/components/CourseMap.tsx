@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CourseLeg, Position, PreSpot } from "@/types";
 import { SPORT_META } from "@/lib/design";
 import { fmtDistances } from "@/lib/utils";
@@ -36,8 +36,10 @@ export default function CourseMap({
 }: Props) {
   const elRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
+  const tileRef = useRef<L.TileLayer | null>(null);
   const layersRef = useRef<L.LayerGroup | null>(null);
   const posRef = useRef<L.LayerGroup | null>(null);
+  const [satellite, setSatellite] = useState(false);
   // The click handler is registered once at init — keep latest callback in a ref
   const onMapClickRef = useRef(onMapClick);
   useEffect(() => {
@@ -115,12 +117,16 @@ export default function CourseMap({
         if (pos.lat === null || pos.lng === null) return;
         const meta = SPORT_META[pos.sport] || SPORT_META.other;
         const isSel = pos.id === selectedId;
-        const label = `${pos.id}`;
+        // Long KMZ spot names need a wider pill — size the icon to the label
+        // so white text stays inside the colored box instead of spilling over.
+        const label = pos.id.length > 24 ? `${pos.id.slice(0, 23)}…` : `${pos.id}`;
+        const w = Math.max(isSel ? 44 : 36, label.length * 7 + 14);
+        const h = isSel ? 22 : 18;
         const icon = leaflet.divIcon({
           className: "",
-          html: `<div class="pos-marker" style="background:${meta.hex};min-width:${isSel ? 44 : 36}px;height:${isSel ? 22 : 18}px;padding:0 5px;${isSel ? "outline:3px solid #fbbf24;" : ""}">${label}</div>`,
-          iconSize: [isSel ? 46 : 38, isSel ? 24 : 20],
-          iconAnchor: [isSel ? 23 : 19, isSel ? 12 : 10],
+          html: `<div class="pos-marker" style="background:${meta.hex};width:${w}px;height:${h}px;padding:0 5px;${isSel ? "outline:3px solid #fbbf24;" : ""}">${label}</div>`,
+          iconSize: [w + 2, h + 2],
+          iconAnchor: [(w + 2) / 2, (h + 2) / 2],
         });
         const marker = leaflet
           .marker([pos.lat, pos.lng], { icon })
@@ -167,12 +173,14 @@ export default function CourseMap({
       if (cancelled || !elRef.current || mapRef.current) return;
       const map = leaflet.map(elRef.current, {
         zoomControl: true,
-        attributionControl: true,
+        attributionControl: false, // hide "Leaflet | © Google Maps" corner label
       });
-      leaflet
-        .tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "&copy; OpenStreetMap contributors",
-          maxZoom: 19,
+      // Google Maps raster tiles — lyrs=m roadmap, lyrs=y satellite+labels.
+      tileRef.current = leaflet
+        .tileLayer("https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}", {
+          subdomains: ["0", "1", "2", "3"],
+          attribution: "&copy; Google Maps",
+          maxZoom: 20,
         })
         .addTo(map);
       layersRef.current = leaflet.layerGroup().addTo(map);
@@ -200,10 +208,23 @@ export default function CourseMap({
   });
 
   return (
-    <div
-      ref={elRef}
-      style={{ height }}
-      className="relative z-0 w-full overflow-hidden rounded-lg border border-slate-200"
-    />
+    <div className="relative">
+      <div
+        ref={elRef}
+        style={{ height }}
+        className="relative z-0 w-full overflow-hidden rounded-lg border border-slate-200"
+      />
+      <button
+        type="button"
+        onClick={() => {
+          const next = !satellite;
+          setSatellite(next);
+          tileRef.current?.setUrl(`https://mt{s}.google.com/vt/lyrs=${next ? "y" : "m"}&x={x}&y={y}&z={z}`);
+        }}
+        className="absolute right-2 top-2 z-[500] rounded-md bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-md ring-1 ring-slate-300 hover:bg-white"
+      >
+        {satellite ? "Street" : "Satellite"}
+      </button>
+    </div>
   );
 }

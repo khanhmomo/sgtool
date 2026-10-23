@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, Download, Plus, Trash2, Users, X } from "lucide-react";
+import { BookOpen, Copy, Download, Plus, Trash2, Users, X } from "lucide-react";
 import { Button, Card, CardHeader, Input, Textarea } from "@/components/ui";
 import { cn, fmtDate, uid } from "@/lib/utils";
 import Markdown from "@/components/Markdown";
@@ -538,6 +538,26 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
     patch({ hyrox: nextDays });
   };
 
+  /** Clone another day's tactic into the active day — shifts, switch groups, breaks */
+  const cloneDay = (fromDate: string) => {
+    const src = days.find((d) => d.date === fromDate);
+    if (!src || fromDate === activeDate) return;
+    const cloned: HyroxTactic = JSON.parse(JSON.stringify(src.tactic));
+    // Fresh ids so edits to cloned switch groups never touch the source day
+    cloned.switchGroups = cloned.switchGroups.map((g) => ({ ...g, id: uid() }));
+    touch(cloned);
+  };
+
+  /** Clone one shift's station plan + its break table into another shift */
+  const cloneShift = (toIdx: number, fromIdx: number) => {
+    const shifts = tactic.shifts.map((sh, i) =>
+      i === toIdx ? JSON.parse(JSON.stringify(tactic.shifts[fromIdx])) : sh
+    );
+    const breaks = [...tactic.breaks];
+    if (tactic.breaks[fromIdx]) breaks[toIdx] = JSON.parse(JSON.stringify(tactic.breaks[fromIdx]));
+    touch({ ...tactic, shifts, breaks });
+  };
+
   const setShiftStation = (shiftIdx: number, stationIdx: number, patch2: Partial<HyroxStationPlan>) =>
     touch({
       ...tactic,
@@ -640,6 +660,25 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
               className="h-7 w-24 px-1.5 text-xs"
             />
           </span>
+          {days.length > 1 && (
+            <label className="flex items-center gap-1.5 rounded-md bg-white px-2 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+              <Copy size={12} className="text-blue-500" />
+              <select
+                value=""
+                onChange={(e) => e.target.value && cloneDay(e.target.value)}
+                className="bg-transparent text-xs font-semibold text-slate-700 outline-none"
+              >
+                <option value="">Copy day from…</option>
+                {days
+                  .filter((d) => d.date !== activeDate)
+                  .map((d) => (
+                    <option key={d.date} value={d.date}>
+                      {fmtDate(d.date)}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          )}
           <button
             onClick={() => touch(defaultTactic())}
             className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600"
@@ -658,6 +697,25 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
             icon={<Users size={15} className="text-blue-600" />}
             action={
               <div className="flex items-center gap-2">
+                {si > 0 && (
+                  <label className="flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+                    <Copy size={11} className="text-blue-500" />
+                    <select
+                      value=""
+                      onChange={(e) => e.target.value !== "" && cloneShift(si, Number(e.target.value))}
+                      className="bg-transparent text-xs font-semibold text-slate-700 outline-none"
+                    >
+                      <option value="">Copy from…</option>
+                      {tactic.shifts.map((_, other) =>
+                        other !== si ? (
+                          <option key={other} value={other}>
+                            Shift {other + 1}
+                          </option>
+                        ) : null
+                      )}
+                    </select>
+                  </label>
+                )}
                 {tactic.shifts.length < 2 && si === tactic.shifts.length - 1 && (
                   <Button size="sm" variant="outline" onClick={addShift}>
                     <Plus size={14} /> Shift 2
