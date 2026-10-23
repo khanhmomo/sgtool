@@ -539,17 +539,28 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const day = days.find((d) => d.date === activeDate);
   const tactic = day?.tactic || defaultTactic();
 
+  // Saves write only days inside the event date range — out-of-range saved days
+  // stay visible (amber pill) for recovery but can't be re-persisted.
+  const saveDays = (nextDays: HyroxDayPlan[]) => {
+    const start = event.date.slice(0, 10);
+    const end = (event.endDate || "").slice(0, 10);
+    const persisted = start
+      ? nextDays.filter((d) => d.date >= start && (!end || d.date <= end))
+      : nextDays;
+    patch({ hyrox: persisted });
+  };
+
   const setCallTime = (v: string) => {
     const nextDays = days.map((d) => (d.date === activeDate ? { ...d, callTime: v } : d));
     setDays(nextDays);
-    patch({ hyrox: nextDays });
+    saveDays(nextDays);
   };
 
   // Every change auto-saves — no explicit save button
   const touch = (next: HyroxTactic) => {
     const nextDays = days.map((d) => (d.date === activeDate ? { ...d, tactic: next } : d));
     setDays(nextDays);
-    patch({ hyrox: nextDays });
+    saveDays(nextDays);
   };
 
   /** Clone another day's tactic into the active day — shifts, switch groups, breaks */

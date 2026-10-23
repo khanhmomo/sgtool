@@ -117,6 +117,13 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   const [tacticSort, setTacticSort] = useState<"order" | "spot" | "photographer" | "arrival">("order");
   const [tacticFilter, setTacticFilter] = useState("");
   const [hyroxDay, setHyroxDay] = useState(0);
+  // Show only days inside the event date range — stale saved days outside the
+  // range are visible in the editor for recovery but hidden on the public page.
+  const hyroxDays = (event.hyrox || []).filter((d) => {
+    const start = event.date.slice(0, 10);
+    const end = (event.endDate || "").slice(0, 10);
+    return !start || (d.date >= start && (!end || d.date <= end));
+  });
   const [tacticDay, setTacticDay] = useState(0);
   const images = files.filter((f) => isImageMime(f.mime));
   const st = STATUS_META[event.status] || STATUS_META.planning;
@@ -236,7 +243,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   const nav = [
     { id: "briefing", label: "Briefing", icon: Megaphone, show: !!event.briefing?.trim() },
     { id: "venue", label: "Venue", icon: MapPin, show: !!event.venue.name },
-    { id: "tactic", label: "Tactic", icon: Target, show: (event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0 || d.callTime || d.note) || (event.hyrox || []).length > 0 },
+    { id: "tactic", label: "Tactic", icon: Target, show: (event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0 || d.callTime || d.note) || hyroxDays.length > 0 },
     { id: "course", label: "Course", icon: RouteIcon, show: legs.length > 0 },
     { id: "files", label: "Files", icon: FolderOpen, show: files.length > 0 },
     { id: "hotel", label: "Hotel", icon: BedDouble, show: event.hotels.some((h) => h.name) },
@@ -354,11 +361,11 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         )}
 
         {/* Tactic — HYROX station plan or spot assignment table */}
-        {(event.hyrox || []).length > 0 ? (
+        {hyroxDays.length > 0 ? (
           <Section id="tactic" icon={<Target size={16} />} title="Tactic">
-            {event.hyrox.length > 1 && (
+            {hyroxDays.length > 1 && (
               <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                {event.hyrox.map((d, i) => (
+                {hyroxDays.map((d, i) => (
                   <button
                     key={d.date}
                     onClick={() => setHyroxDay(i)}
@@ -375,9 +382,9 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
               </div>
             )}
             <HyroxPublicView
-              hyrox={(event.hyrox[hyroxDay] || event.hyrox[0]).tactic}
+              hyrox={(hyroxDays[hyroxDay] || hyroxDays[0]).tactic}
               team={event.photographers.map((p) => p.acronym || p.name)}
-              callTime={(event.hyrox[hyroxDay] || event.hyrox[0]).callTime}
+              callTime={(hyroxDays[hyroxDay] || hyroxDays[0]).callTime}
             />
           </Section>
         ) : ((event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0 || d.callTime || d.note)) && (
