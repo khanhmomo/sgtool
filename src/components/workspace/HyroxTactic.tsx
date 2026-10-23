@@ -503,14 +503,16 @@ const normTactic = (t: HyroxTactic): HyroxTactic => ({
   breaks: normBreakTables(t.breaks),
 });
 
-/** Inclusive YYYY-MM-DD range */
+/** Inclusive YYYY-MM-DD range — built from local date parts, never toISOString
+ *  (UTC conversion would shift the day for editors in timezones ahead of UTC). */
 function dateRange(start: string, end: string): string[] {
   const out: string[] = [];
   if (!start) return out;
   const d = new Date(`${start}T00:00:00`);
   const last = new Date(`${(end && end >= start ? end : start)}T00:00:00`);
+  const pad = (n: number) => String(n).padStart(2, "0");
   for (let i = 0; i < 60 && d <= last; i++) {
-    out.push(d.toISOString().slice(0, 10));
+    out.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
     d.setDate(d.getDate() + 1);
   }
   return out;
@@ -518,10 +520,12 @@ function dateRange(start: string, end: string): string[] {
 
 export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const [days, setDays] = useState<HyroxDayPlan[]>(() => {
-    // Days follow the event's start→end date range exactly; saved hyrox entries
-    // merge in for matching dates (stale saved days outside the range drop).
+    // Days cover the event's start→end range PLUS any saved hyrox dates — saved
+    // days outside the range are kept (marked "outside event") so data is never
+    // silently hidden when the event dates change after a tactic was saved.
     const range = dateRange(event.date.slice(0, 10), (event.endDate || "").slice(0, 10));
-    const dates = range.length ? range : (event.hyrox || []).map((d) => d.date).filter(Boolean);
+    const saved = (event.hyrox || []).map((d) => d.date).filter(Boolean);
+    const dates = [...range, ...saved];
     return [...new Set(dates)].sort().map((date) => ({
       date,
       callTime: event.hyrox?.find((x) => x.date === date)?.callTime || "",
@@ -695,18 +699,29 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
       {days.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-medium text-slate-500">Day:</span>
-          {days.map((d) => (
-            <button
-              key={d.date}
-              onClick={() => setActiveDate(d.date)}
-              className={cn(
-                "rounded-md px-2.5 py-1 text-xs font-semibold",
-                d.date === activeDate ? "bg-slate-900 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
-              )}
-            >
-              {fmtDate(d.date)}
-            </button>
-          ))}
+          {days.map((d) => {
+            const inRange =
+              d.date >= event.date.slice(0, 10) &&
+              (!event.endDate || d.date <= event.endDate.slice(0, 10));
+            return (
+              <button
+                key={d.date}
+                onClick={() => setActiveDate(d.date)}
+                title={inRange ? undefined : "Outside event dates — copy it into an event day with 'Copy day from…'"}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-semibold",
+                  d.date === activeDate
+                    ? "bg-slate-900 text-white"
+                    : inRange
+                      ? "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                      : "bg-amber-50 text-amber-700 ring-1 ring-dashed ring-amber-300 hover:bg-amber-100"
+                )}
+              >
+                {fmtDate(d.date)}
+                {!inRange && " *"}
+              </button>
+            );
+          })}
           <span className="ml-auto flex items-center gap-1 text-xs font-medium text-slate-500">
             Call time
             <Input

@@ -108,14 +108,16 @@ const newRow = (spot = ""): TacticRow => ({
   ls: "",
 });
 
-/** Inclusive YYYY-MM-DD date list from start → end (capped at 30 days). */
+/** Inclusive YYYY-MM-DD date list from start → end (capped at 30 days).
+ *  Uses local date parts — toISOString would shift the day for editors east of UTC. */
 function dateRange(start: string, end: string): string[] {
   const out: string[] = [];
   if (!start) return out;
   const d = new Date(start + "T00:00:00");
   const stop = end ? new Date(end + "T00:00:00") : d;
+  const pad = (n: number) => String(n).padStart(2, "0");
   while (d <= stop && out.length < 30) {
-    out.push(d.toISOString().slice(0, 10));
+    out.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
     d.setDate(d.getDate() + 1);
   }
   return out;
