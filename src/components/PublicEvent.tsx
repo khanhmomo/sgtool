@@ -27,7 +27,8 @@ import {
 import { Badge, Card } from "@/components/ui";
 import { STATUS_META, SPORT_META } from "@/lib/design";
 import { fmtDate, isImageMime, isPdfMime, cn, spotMapUrl } from "@/lib/utils";
-import { extractCoords } from "@/lib/coords";
+import { extractCoords, isShortMapLink } from "@/lib/coords";
+import type { ParsedCoords } from "@/lib/coords";
 import tzLookup from "tz-lookup";
 import Markdown from "@/components/Markdown";
 import { FileTypeBadge, Lightbox, PdfViewer } from "@/components/FileViewers";
@@ -166,10 +167,28 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   const [clockOpen, setClockOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
-  // Event-local timezone: venue map-link coords → first spot coords → device
+  // Event-local timezone: venue map-link coords → first spot coords.
+  // Short links (maps.app.goo.gl) hide coords client-side — resolve via API.
+  const [venueCoords, setVenueCoords] = useState<ParsedCoords | null>(null);
+  useEffect(() => {
+    const link = event.venue?.mapLink || "";
+    if (extractCoords(link) || !isShortMapLink(link)) return;
+    const venueName = (event.venue?.name || "").replace(/\s*\(.*?\)\s*/g, "").trim();
+    const q = [venueName, event.location, event.country].filter(Boolean).join(", ");
+    let live = true;
+    fetch(`/api/resolve-map?url=${encodeURIComponent(link)}&q=${encodeURIComponent(q)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (live && d?.lat != null && d?.lng != null) setVenueCoords({ lat: d.lat, lng: d.lng });
+      })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [event.venue?.mapLink, event.venue?.name, event.location, event.country]);
+
   const eventTz = (() => {
     const c =
       extractCoords(event.venue?.mapLink || "") ||
+      venueCoords ||
       (event.positions || []).find((p) => p.lat != null && p.lng != null);
     const lat = c && "lat" in c ? c.lat : undefined;
     const lng = c && "lng" in c ? c.lng : undefined;
@@ -832,25 +851,31 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         >
           <div className="w-full max-w-md text-center" onClick={(e) => e.stopPropagation()}>
             <p className="text-xs font-bold uppercase tracking-[0.3em] text-blue-400">Camera check</p>
-            <p className="mt-6 whitespace-nowrap font-mono text-5xl font-bold tabular-nums text-white md:text-6xl">
-              {now
-                .toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: eventTz })
-                .replace(/ ?([AP]M)$/i, "")}
-              <span className="ml-2 text-3xl font-semibold text-blue-400 md:text-4xl">
-                {now.toLocaleTimeString("en-US", { hour: "numeric", hour12: true, timeZone: eventTz }).replace(/^\d+ ?/i, "")}
-              </span>
-            </p>
-            <p className="mt-4 font-mono text-lg text-slate-300">
-              {now.toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: eventTz })}
-            </p>
+            {eventTz ? (
+              <>
+                <p className="mt-6 whitespace-nowrap font-mono text-5xl font-bold tabular-nums text-white md:text-6xl">
+                  {now
+                    .toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true, timeZone: eventTz })
+                    .replace(/ ?([AP]M)$/i, "")}
+                  <span className="ml-2 text-3xl font-semibold text-blue-400 md:text-4xl">
+                    {now.toLocaleTimeString("en-US", { hour: "numeric", hour12: true, timeZone: eventTz }).replace(/^\d+ ?/i, "")}
+                  </span>
+                </p>
+                <p className="mt-4 font-mono text-lg text-slate-300">
+                  {now.toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: eventTz })}
+                </p>
+              </>
+            ) : (
+              <p className="mt-8 rounded-md border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm font-semibold text-amber-300">
+                Event location unavailable — ask your team leader to set the venue map link so this clock shows local event time.
+              </p>
+            )}
             <p className="mt-6 flex items-center justify-center gap-1.5 text-sm font-semibold text-slate-400">
               <MapPin size={14} className="text-blue-400" />
               {[event.location, event.country].filter(Boolean).join(", ") || event.name}
             </p>
             <p className="mt-1 text-[11px] text-slate-500">
-              {eventTz
-                ? `Event local time · ${eventTz.replace(/_/g, " ")}`
-                : `Device clock · ${Intl.DateTimeFormat().resolvedOptions().timeZone}`}
+              {eventTz && `Event local time · ${eventTz.replace(/_/g, " ")}`}
             </p>
             <button
               onClick={() => setClockOpen(false)}
