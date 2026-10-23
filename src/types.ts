@@ -83,6 +83,12 @@ export interface Photographer {
   role: string; // e.g. "Photographer", "Team Leader", "Drone"
   vehicle: string;
   notes: string;
+  /** Equipment from CSV import — comma-separated lists, e.g. "A9III, A1" */
+  cameras?: string;
+  lenses?: string;
+  flashes?: string;
+  /** CSV "Has remote camera" — "yes"/"no"/truthy text */
+  remoteCamera?: string;
 }
 
 export interface Position {
