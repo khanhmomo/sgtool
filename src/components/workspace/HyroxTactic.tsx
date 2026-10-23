@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { BookOpen, Copy, Download, Plus, Trash2, Users, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, BookOpen, Copy, Download, Plus, Trash2, Users, X } from "lucide-react";
 import { Button, Card, CardHeader, Input, Textarea } from "@/components/ui";
 import { cn, fmtDate, uid } from "@/lib/utils";
 import Markdown from "@/components/Markdown";
@@ -57,12 +57,15 @@ function NameCell({
   onRemove,
   chipClass,
   droppable = true,
+  onDragChip,
 }: {
   values: string[];
   onDropName: (name: string) => void;
   onRemove: (name: string) => void;
   chipClass: (v: string) => string;
   droppable?: boolean;
+  /** Called when a chip inside this cell starts being dragged (move, not copy) */
+  onDragChip?: (name: string) => void;
 }) {
   const [over, setOver] = useState(false);
   return (
@@ -86,7 +89,14 @@ function NameCell({
       {values.map((v, i) => (
         <span
           key={`${v}-${i}`}
-          className={cn("group inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[11px] font-bold text-white", chipClass(v))}
+          draggable={!!onDragChip}
+          onDragStart={onDragChip ? (e) => {
+            e.stopPropagation();
+            e.dataTransfer.setData("text/plain", v);
+            e.dataTransfer.effectAllowed = "move";
+            onDragChip(v);
+          } : undefined}
+          className={cn("group inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[11px] font-bold text-white", chipClass(v), onDragChip && "cursor-grab active:cursor-grabbing")}
         >
           {v}
           <button
@@ -607,23 +617,44 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
     setBreakTable(si, { ...t, rows: { ...(t.rows || {}), [station]: row } });
   };
 
-  /** Add a dragged name: photographers dedupe within the shift, cover allows repeats across stations */
-  const addName = (si: number, sti: number, key: "photographers" | "cover" | "ls", name: string) => {
-    const shift = tactic.shifts[si];
+  const removeName = (si: number, sti: number, key: "photographers" | "cover" | "ls", name: string) =>
+    setShiftStation(si, sti, { [key]: tactic.shifts[si][sti][key].filter((n) => n !== name) });
+
+  /** Source cell of a chip currently being dragged — null when dragging from the Team pool */
+  const dragSrcRef = useRef<{ si: number; sti: number; key: "photographers" | "cover" | "ls" } | null>(null);
+
+  /**
+   * Drop a name into a cell. If it was dragged out of another cell, it is MOVED —
+   * removed from the source and added to the target in a single update so dedupe
+   * checks see the post-removal state (e.g. moving within one shift).
+   */
+  const dropName = (si: number, sti: number, key: "photographers" | "cover" | "ls", name: string) => {
+    const src = dragSrcRef.current;
+    dragSrcRef.current = null;
+    if (src && src.si === si && src.sti === sti && src.key === key) return; // dropped back where it was
+    const shifts = tactic.shifts.map((sh) =>
+      sh.map((st) => ({ ...st, photographers: [...st.photographers], cover: [...st.cover], ls: [...(st.ls || [])] }))
+    );
+    if (src) {
+      const arr = shifts[src.si][src.sti][src.key];
+      const i = arr.indexOf(name);
+      if (i >= 0) arr.splice(i, 1);
+    }
+    const shift = shifts[si];
+    // Same dedupe rules as addName — on failure the move is rejected (source keeps the chip)
     if (key === "photographers") {
-      if (shift.some((s) => s.photographers.includes(name))) return;
-      if (shift[sti].photographers.includes(name)) return;
+      const hit = isExternal(shift[sti].station)
+        ? shift[sti].photographers.includes(name)
+        : shift.some((s) => s.photographers.includes(name));
+      if (hit) return;
     } else if (key === "ls") {
-      // LS may reuse team members who are already assigned to a station —
-      // only dedupe within LS lists so the same person isn't LS twice.
       if (shift.some((s) => (s.ls || []).includes(name))) return;
     } else if (shift[sti].cover.includes(name)) {
       return;
     }
-    setShiftStation(si, sti, { [key]: [...(shift[sti][key] || []), name] });
+    shift[sti][key].push(name);
+    touch({ ...tactic, shifts });
   };
-  const removeName = (si: number, sti: number, key: "photographers" | "cover" | "ls", name: string) =>
-    setShiftStation(si, sti, { [key]: tactic.shifts[si][sti][key].filter((n) => n !== name) });
 
   const maxP = Math.max(1, ...tactic.switchGroups.map((g) => g.photographers.length));
 
@@ -632,6 +663,31 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const coveringSet = new Set(tactic.shifts.flat().flatMap((s) => s.cover));
   /** Team acronym/name tags — anything else in a cell is an external (LS) */
   const teamTags = new Set(event.photographers.map((p) => p.acronym || p.name));
+
+  // Rotation alerts — same photographer on the same station across different days.
+  // Recomputed on every render, so alerts appear/disappear in real time.
+  const stationDates = new Map<string, Set<string>>();
+  for (const d of days) {
+    for (const shift of d.tactic?.shifts || []) {
+      for (const st of shift) {
+        for (const n of [...st.photographers, ...st.cover]) {
+          if (!n) continue;
+          const key = `${n}@@${st.station}`;
+          const s = stationDates.get(key) || new Set<string>();
+          s.add(d.date);
+          stationDates.set(key, s);
+        }
+      }
+    }
+  }
+  const dupAlerts: { name: string; station: string; dates: string[] }[] = [];
+  for (const [key, dates] of stationDates) {
+    if (dates.size > 1) {
+      const [name, station] = key.split("@@");
+      dupAlerts.push({ name, station, dates: [...dates].sort() });
+    }
+  }
+  dupAlerts.sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -755,11 +811,9 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                         /* External crew — whole cell is an LS drop zone; assigned members allowed */
                         <NameCell
                           values={st.photographers}
-                          onDropName={(n) => {
-                            if (!st.photographers.includes(n))
-                              setShiftStation(si, sti, { photographers: [...st.photographers, n] });
-                          }}
+                          onDropName={(n) => dropName(si, sti, "photographers", n)}
                           onRemove={(n) => removeName(si, sti, "photographers", n)}
+                          onDragChip={() => { dragSrcRef.current = { si, sti, key: "photographers" }; }}
                           chipClass={() => "bg-amber-400 !text-slate-900"}
                         />
                       ) : st.station === "Finish" ? (
@@ -768,8 +822,9 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                           <div className="pr-2">
                             <NameCell
                               values={st.photographers}
-                              onDropName={(n) => addName(si, sti, "photographers", n)}
+                              onDropName={(n) => dropName(si, sti, "photographers", n)}
                               onRemove={(n) => removeName(si, sti, "photographers", n)}
+                              onDragChip={() => { dragSrcRef.current = { si, sti, key: "photographers" }; }}
                               chipClass={(v) => (teamTags.has(v) ? "bg-green-600" : "bg-amber-400 !text-slate-900")}
                             />
                           </div>
@@ -777,8 +832,9 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                             <p className="mb-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-600">LS</p>
                             <NameCell
                               values={st.ls || []}
-                              onDropName={(n) => addName(si, sti, "ls", n)}
+                              onDropName={(n) => dropName(si, sti, "ls", n)}
                               onRemove={(n) => removeName(si, sti, "ls", n)}
+                              onDragChip={() => { dragSrcRef.current = { si, sti, key: "ls" }; }}
                               chipClass={() => "bg-amber-400 !text-slate-900"}
                             />
                           </div>
@@ -787,8 +843,9 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                         <div className="flex flex-wrap items-center gap-1">
                           <NameCell
                             values={st.photographers}
-                            onDropName={(n) => addName(si, sti, "photographers", n)}
+                            onDropName={(n) => dropName(si, sti, "photographers", n)}
                             onRemove={(n) => removeName(si, sti, "photographers", n)}
+                            onDragChip={() => { dragSrcRef.current = { si, sti, key: "photographers" }; }}
                             chipClass={(v) => (teamTags.has(v) ? "bg-green-600" : "bg-amber-400 !text-slate-900")}
                           />
                         </div>
@@ -857,8 +914,9 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                       ) : (
                         <NameCell
                           values={st.cover}
-                          onDropName={(n) => addName(si, sti, "cover", n)}
+                          onDropName={(n) => dropName(si, sti, "cover", n)}
                           onRemove={(n) => removeName(si, sti, "cover", n)}
+                          onDragChip={() => { dragSrcRef.current = { si, sti, key: "cover" }; }}
                           chipClass={(v) => (teamTags.has(v) ? "bg-blue-600" : "bg-amber-400 !text-slate-900")}
                         />
                       )}
@@ -1094,7 +1152,8 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
       </div>
       {/* Photographer pool — sticky right column, drag onto any cell */}
       {event.photographers.length > 0 && (
-        <aside className="sticky top-20 w-60 shrink-0 self-start rounded-lg border border-slate-200 bg-white p-2">
+        <aside className="sticky top-20 w-60 shrink-0 self-start space-y-2">
+        <div className="rounded-lg border border-slate-200 bg-white p-2">
           <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Team</p>
           <div className="grid grid-cols-2 gap-1 overflow-y-auto" style={{ maxHeight: "calc(100vh - 140px)" }}>
             {event.photographers.map((p) => {
@@ -1120,6 +1179,28 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
               );
             })}
           </div>
+        </div>
+        {dupAlerts.length > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-2">
+            <p className="mb-1.5 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-700">
+              <AlertTriangle size={11} /> Alert — duplicate station
+            </p>
+            <ul className="space-y-1">
+              {dupAlerts.map((a) => (
+                <li
+                  key={`${a.name}-${a.station}`}
+                  className="rounded bg-white/80 px-1.5 py-1 text-[10px] leading-tight text-amber-900 ring-1 ring-amber-200"
+                >
+                  <span className="font-bold">{a.name}</span> in{" "}
+                  <span className="font-semibold">{a.station}</span>
+                  <span className="block text-amber-700">
+                    {a.dates.map((d) => fmtDate(d)).join(" + ")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         </aside>
       )}
       </div>
