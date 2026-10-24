@@ -23,6 +23,7 @@ import {
   Megaphone,
   MessageSquarePlus,
   Timer,
+  CloudSun,
 } from "lucide-react";
 import { Badge, Card } from "@/components/ui";
 import { STATUS_META, SPORT_META } from "@/lib/design";
@@ -36,6 +37,7 @@ import type { EventDTO, FileDTO } from "@/types";
 import { HyroxPublicView } from "@/components/workspace/HyroxTactic";
 
 const CourseMap = dynamic(() => import("@/components/CourseMap"), { ssr: false });
+const WeatherForecast = dynamic(() => import("@/components/WeatherForecast"), { ssr: false });
 
 /** Thumbnails shown before "+N more" opens the lightbox */
 const PREVIEW_COUNT = 12;
@@ -192,16 +194,21 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
     return () => { live = false; };
   }, [event.venue?.mapLink, event.venue?.name, event.location, event.country]);
 
-  const eventTz = (() => {
+  // Venue coords: map-link → resolved short link → first position marker
+  const spotCoords = (() => {
     const c =
       extractCoords(event.venue?.mapLink || "") ||
       venueCoords ||
       (event.positions || []).find((p) => p.lat != null && p.lng != null);
     const lat = c && "lat" in c ? c.lat : undefined;
     const lng = c && "lng" in c ? c.lng : undefined;
-    if (lat == null || lng == null) return undefined;
+    return lat != null && lng != null ? { lat, lng } : null;
+  })();
+
+  const eventTz = (() => {
+    if (!spotCoords) return undefined;
     try {
-      return tzLookup(lat, lng);
+      return tzLookup(spotCoords.lat, spotCoords.lng);
     } catch {
       return undefined;
     }
@@ -591,6 +598,33 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
             <CourseMap legs={legs} positions={event.positions} height={320} />
           </Section>
         )}
+
+        {/* Weather — outdoor event types only */}
+        {(() => {
+          // indoor formats (HYROX / Fitness Indoor) don't need a forecast
+          const outdoor = !/hyrox|indoor/i.test(event.type);
+          if (!outdoor) return null;
+          // Every day of the event gets its own 24h card
+          const dates: string[] = [];
+          if (event.date) {
+            const d0 = new Date(`${event.date}T00:00:00`);
+            const d1 = event.endDate ? new Date(`${event.endDate}T00:00:00`) : d0;
+            for (const d = new Date(d0); d <= d1 && dates.length < 7; d.setDate(d.getDate() + 1)) {
+              dates.push(d.toISOString().slice(0, 10));
+            }
+          }
+          if (!dates.length) return null;
+          return (
+            <Section id="weather" icon={<CloudSun size={16} />} title="Weather forecast">
+              <WeatherForecast
+                dates={dates}
+                lat={spotCoords?.lat}
+                lng={spotCoords?.lng}
+                q={[event.venue?.name, event.location, event.country].filter(Boolean).join(", ")}
+              />
+            </Section>
+          );
+        })()}
 
         {/* Files */}
         {files.length > 0 && (
