@@ -194,12 +194,14 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
     return () => { live = false; };
   }, [event.venue?.mapLink, event.venue?.name, event.location, event.country]);
 
-  // Venue coords: map-link → resolved short link → first position marker
+  // Venue coords: map-link → resolved short link → first position marker →
+  // first course track point (weather still works when venue info is missing)
   const spotCoords = (() => {
     const c =
       extractCoords(event.venue?.mapLink || "") ||
       venueCoords ||
-      (event.positions || []).find((p) => p.lat != null && p.lng != null);
+      (event.positions || []).find((p) => p.lat != null && p.lng != null) ||
+      event.course?.legs?.[0]?.points?.[0];
     const lat = c && "lat" in c ? c.lat : undefined;
     const lng = c && "lng" in c ? c.lng : undefined;
     return lat != null && lng != null ? { lat, lng } : null;
