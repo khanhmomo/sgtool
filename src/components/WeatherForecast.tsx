@@ -231,7 +231,7 @@ export default function WeatherForecast({ dates, lat, lng, q }: Props) {
                   const HIcon = (h.isDay ? w.day : w.night) || w.day;
                   return (
                     <div key={i} className="flex w-12 shrink-0 flex-col items-center gap-1 py-1 text-[11px]">
-                      <span className="text-white/70">{i === 0 ? "Now" : `${h.hour}`}</span>
+                      <span className="text-white/70">{h.hour}</span>
                       <HIcon size={16} className={h.isDay ? "text-yellow-200" : "text-sky-200"} />
                       <span className="flex h-3 items-center gap-0.5 text-[9px] text-sky-200">
                         {h.rain >= 20 && (
