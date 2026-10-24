@@ -13,7 +13,7 @@ function num(v: unknown): number | null {
   return isFinite(n) ? n : null;
 }
 
-export function buildLeg(name: string, rawPts: { lat: number; lng: number }[]): CourseLeg | null {
+export function buildLeg(name: string, rawPts: { lat: number; lng: number; ele?: number }[]): CourseLeg | null {
   if (rawPts.length < 2) return null;
   // cap point count so Mongo documents stay small and the map stays fast
   const MAX = 1500;
@@ -24,13 +24,13 @@ export function buildLeg(name: string, rawPts: { lat: number; lng: number }[]): 
   for (let i = 0; i < rawPts.length; i += step) {
     const p = rawPts[i];
     if (prev) d += haversineM(prev.lat, prev.lng, p.lat, p.lng) / 1000;
-    pts.push({ lat: p.lat, lng: p.lng, d });
+    pts.push({ lat: p.lat, lng: p.lng, d, ele: p.ele });
     prev = p;
   }
   const last = rawPts[rawPts.length - 1];
   if (prev && (prev.lat !== last.lat || prev.lng !== last.lng)) {
     d += haversineM(prev.lat, prev.lng, last.lat, last.lng) / 1000;
-    pts.push({ lat: last.lat, lng: last.lng, d });
+    pts.push({ lat: last.lat, lng: last.lng, d, ele: last.ele });
   }
   const sport: Sport = sportOf(name);
   return { name: name || "Course", sport, points: pts, distanceKm: d };
@@ -60,13 +60,14 @@ export function parseGpx(xmlText: string, fileName: string): Course {
   // Tracks — each <trk> becomes one leg, <trkseg> points concatenated.
   for (const trk of asArray(gpx.trk as Record<string, unknown> | Record<string, unknown>[])) {
     const name = String((trk as Record<string, unknown>).name ?? "") || `Track ${legs.length + 1}`;
-    const rawPts: { lat: number; lng: number }[] = [];
+    const rawPts: { lat: number; lng: number; ele?: number }[] = [];
     for (const seg of asArray((trk as Record<string, unknown>).trkseg)) {
       for (const pt of asArray((seg as Record<string, unknown>)?.trkpt)) {
         const rec = pt as Record<string, unknown>;
         const lat = num(rec["@_lat"]);
         const lng = num(rec["@_lon"]);
-        if (lat !== null && lng !== null) rawPts.push({ lat, lng });
+        const ele = num(rec.ele);
+        if (lat !== null && lng !== null) rawPts.push({ lat, lng, ele: ele ?? undefined });
       }
     }
     const leg = buildLeg(name, rawPts);
@@ -76,12 +77,13 @@ export function parseGpx(xmlText: string, fileName: string): Course {
   // Routes — each <rte> becomes one leg if no track covered it.
   for (const rte of asArray(gpx.rte as Record<string, unknown> | Record<string, unknown>[])) {
     const name = String((rte as Record<string, unknown>).name ?? "") || `Route ${legs.length + 1}`;
-    const rawPts: { lat: number; lng: number }[] = [];
+    const rawPts: { lat: number; lng: number; ele?: number }[] = [];
     for (const pt of asArray((rte as Record<string, unknown>).rtept)) {
       const rec = pt as Record<string, unknown>;
       const lat = num(rec["@_lat"]);
       const lng = num(rec["@_lon"]);
-      if (lat !== null && lng !== null) rawPts.push({ lat, lng });
+      const ele = num(rec.ele);
+      if (lat !== null && lng !== null) rawPts.push({ lat, lng, ele: ele ?? undefined });
     }
     const leg = buildLeg(name, rawPts);
     if (leg) legs.push(leg);

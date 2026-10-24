@@ -15,6 +15,8 @@ interface Props {
   selectedId?: string | null;
   onSelectPosition?: (id: string) => void;
   onMapClick?: (lat: number, lng: number) => void;
+  /** Point under the elevation-chart cursor — shows a moving dot on the map */
+  hoverPoint?: { lat: number; lng: number } | null;
   height?: number;
 }
 
@@ -32,6 +34,7 @@ export default function CourseMap({
   selectedId,
   onSelectPosition,
   onMapClick,
+  hoverPoint,
   height = 420,
 }: Props) {
   const elRef = useRef<HTMLDivElement>(null);
@@ -39,6 +42,9 @@ export default function CourseMap({
   const tileRef = useRef<L.TileLayer | null>(null);
   const layersRef = useRef<L.LayerGroup | null>(null);
   const posRef = useRef<L.LayerGroup | null>(null);
+  const hoverRef = useRef<L.CircleMarker | null>(null);
+  /** Legs already framed by fitBounds — keeps user zoom when only positions change */
+  const fittedLegsRef = useRef<CourseLeg[] | null>(null);
   const [satellite, setSatellite] = useState(false);
   // The click handler is registered once at init — keep latest callback in a ref
   const onMapClickRef = useRef(onMapClick);
@@ -160,7 +166,8 @@ export default function CourseMap({
       bounds.push([ps.lat, ps.lng]);
     });
 
-    if (bounds.length) {
+    if (bounds.length && fittedLegsRef.current !== legs) {
+      fittedLegsRef.current = legs;
       map.fitBounds(leaflet.latLngBounds(bounds).pad(0.12));
     }
   }
@@ -199,13 +206,43 @@ export default function CourseMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // re-render layers when data changes
+  // re-render layers only when map data changes — not on unrelated parent
+  // re-renders (e.g. hoverPoint state churn would otherwise reset zoom)
   useEffect(() => {
     (async () => {
       const leaflet = await import("leaflet");
       renderLayers(leaflet);
     })();
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legs, positions, preSpots, showCourse, showPositions, selectedId]);
+
+  // Elevation-chart hover dot — lightweight, updates without re-rendering layers
+  useEffect(() => {
+    (async () => {
+      const leaflet = await import("leaflet");
+      const map = mapRef.current;
+      if (!map) return;
+      if (!hoverPoint) {
+        hoverRef.current?.remove();
+        hoverRef.current = null;
+        return;
+      }
+      if (hoverRef.current) {
+        hoverRef.current.setLatLng([hoverPoint.lat, hoverPoint.lng]);
+      } else {
+        hoverRef.current = leaflet
+          .circleMarker([hoverPoint.lat, hoverPoint.lng], {
+            radius: 9,
+            color: "#fff",
+            weight: 3,
+            fillColor: "#f97316",
+            fillOpacity: 1,
+            interactive: false,
+          })
+          .addTo(map);
+      }
+    })();
+  }, [hoverPoint]);
 
   return (
     <div className="relative">

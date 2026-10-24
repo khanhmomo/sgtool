@@ -136,6 +136,7 @@ export interface CoursePoint {
   lat: number;
   lng: number;
   d: number; // cumulative km from leg start
+  ele?: number; // meters above sea level, if the GPX provided it
 }
 
 export interface CourseLeg {

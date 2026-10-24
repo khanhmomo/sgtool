@@ -33,6 +33,7 @@ import { SPORT_META } from "@/lib/design";
 import { cn, fmtDistances, spotMapUrl, uid } from "@/lib/utils";
 import { analyzePosition } from "@/lib/geo";
 import { buildLeg } from "@/lib/gpx";
+import ElevationChart from "@/components/ElevationChart";
 import { extractCoords, parseLatLngText } from "@/lib/coords";
 import type { CourseLeg, Position, PositionAnalysis, PreSpot } from "@/types";
 import type { TabProps } from "./EventWorkspace";
@@ -59,6 +60,8 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
   const [editing, setEditing] = useState<EditingPosition | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCourse, setShowCourse] = useState(true);
+  /** Point under the elevation-chart cursor — mirrored as a dot on the map */
+  const [hoverPt, setHoverPt] = useState<{ lat: number; lng: number } | null>(null);
   const [showPositions, setShowPositions] = useState(true);
   const [showPreSpots, setShowPreSpots] = useState(true);
   const [showAddedSpots, setShowAddedSpots] = useState(true);
@@ -123,10 +126,11 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
         const raw = line
           .split(/\s+/)
           .map((c) => {
-            const [ln, la] = c.split(",").map(Number);
-            return isFinite(la) && isFinite(ln) ? { lat: la, lng: ln } : null;
+            const [ln, la, el] = c.split(",").map(Number);
+            if (!isFinite(la) || !isFinite(ln)) return null;
+            return { lat: la, lng: ln, ele: isFinite(el) ? el : undefined };
           })
-          .filter((c): c is { lat: number; lng: number } => !!c);
+          .filter((c): c is { lat: number; lng: number; ele: number | undefined } => !!c);
         const leg = buildLeg(name || `Path ${foundLegs.length + 1}`, raw);
         if (leg) foundLegs.push({ ...leg, source: "kmz" });
       });
@@ -585,6 +589,7 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
               <CourseMap
                 legs={legs}
                 positions={positions}
+                hoverPoint={hoverPt}
                 preSpots={noKmz ? [] : preSpots.filter(
                   (s) => (s.added && showAddedSpots) || (!s.added && showPreSpots)
                 )}
@@ -608,6 +613,20 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
                   ? "Click anywhere on the map to place a new spot."
                   : "Click a marker to edit that spot."}
               </p>
+              {/* Elevation profile per course — only for legs whose GPX had <ele> */}
+              {legs.some((l) => l.points.some((p) => p.ele !== undefined)) && (
+                <div className="mt-3 space-y-2">
+                  {legs.map((l, i) => (
+                    <ElevationChart
+                      key={i}
+                      name={l.name}
+                      color={l.color || SPOT_COLORS[i % SPOT_COLORS.length]}
+                      points={l.points}
+                      onHover={setHoverPt}
+                    />
+                  ))}
+                </div>
+              )}
             </>
           ) : (
             <Empty
@@ -779,7 +798,7 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
       {/* ── Position editor modal ── */}
       {editing && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4">
-          <Card className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-b-none sm:rounded-lg">
+          <Card className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-b-none sm:rounded-lg">
             <CardHeader
               title={editing.__isNew ? "New spot" : `Edit ${editing.id}`}
               action={
@@ -788,7 +807,9 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
                 </button>
               }
             />
-            <div className="grid gap-4 p-4">
+            <div className="grid sm:grid-cols-2">
+            {/* Left — spot details form */}
+            <div className="grid content-start gap-4 p-4">
               <Field label="Spot name">
                 <Input
                   value={editing.photographer}
@@ -947,6 +968,23 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
                   <Check size={13} /> Done
                 </Button>
               </div>
+            </div>
+            {/* Right — real 360° Street View panorama at the spot.
+                Google snaps to the nearest panorama if the exact point has no coverage */}
+            {editing.lat != null && editing.lng != null && (
+              <div className="flex flex-col border-t border-slate-100 sm:border-l sm:border-t-0">
+                <iframe
+                  title="Street View 360 at this spot"
+                  src={`https://maps.google.com/maps?q=&layer=c&cbll=${editing.lat},${editing.lng}&cbp=12,0,0,0,0&output=svembed`}
+                  className="min-h-[280px] w-full flex-1"
+                  loading="lazy"
+                  allowFullScreen
+                />
+                <p className="px-4 pb-2 pt-1.5 text-[11px] text-slate-400">
+                  Street View — drag to look around. If this spot has no coverage, Google shows the nearest available view.
+                </p>
+              </div>
+            )}
             </div>
           </Card>
         </div>
