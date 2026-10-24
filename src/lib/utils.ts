@@ -50,9 +50,10 @@ export function slugify(s: string): string {
 export function googleMapsUrl(lat: number, lng: number): string {
   // Google renders China in GCJ-02 — convert so the pin lands on the right spot
   const p = wgs84ToGcj02(lat, lng);
-  // `loc:` forces an exact pin — a plain search query snaps to the nearest
-  // named place/road, which can land the pin ~500m off the real spot.
-  return `https://www.google.com/maps?q=loc:${p.lat},${p.lng}`;
+  // Maps API search URL — drops an exact pin at the coords on desktop AND
+  // inside the mobile app (`loc:` breaks the app: it searches the literal
+  // text instead of parsing a coordinate).
+  return `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`;
 }
 
 /** South Korea bounding box — Google Maps has poor coverage there; Naver is standard. */
