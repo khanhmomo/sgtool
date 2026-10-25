@@ -20,7 +20,14 @@ export function serializeEvent(doc: any): EventDTO {
     id: String(e._id),
     ownerId: String(e.ownerId),
     ownerAcronym: e.ownerAcronym || "",
-    teamLeaders: (e.teamLeaders || []).map((t: unknown) => String(t)),
+    teamLeaders: (e.teamLeaders || []).map((t: unknown) => (t && typeof t === "object" && "_id" in t ? String((t as { _id: unknown })._id) : String(t))),
+    // Populated on the public page so it can credit all TLs
+    teamLeaderInfos: (e.teamLeaders || [])
+      .filter((t: unknown) => t && typeof t === "object" && "acronym" in t)
+      .map((t: unknown) => {
+        const u = t as { _id: unknown; acronym?: string; name?: string };
+        return { id: String(u._id), acronym: u.acronym || "", name: u.name || "" };
+      }),
     name: e.name || "",
     type: e.type || "",
     date: e.date || "",

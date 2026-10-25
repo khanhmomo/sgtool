@@ -21,7 +21,7 @@ export default async function PublicEventPage(props: {
 }) {
   const { slug } = await props.params;
   await connectDB();
-  const event = await Event.findOne({ shareSlug: slug });
+  const event = await Event.findOne({ shareSlug: slug }).populate("teamLeaders", "acronym name");
   if (!event) {
     notFound();
   }

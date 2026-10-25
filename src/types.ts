@@ -245,6 +245,8 @@ export interface EventDTO {
   ownerAcronym: string;
   /** Additional team leaders with full access to this event */
   teamLeaders: string[];
+  /** Populated co-leader details (public page only) */
+  teamLeaderInfos: { id: string; acronym: string; name: string }[];
   name: string;
   type: string;
   date: string; // YYYY-MM-DD

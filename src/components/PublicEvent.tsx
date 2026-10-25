@@ -293,7 +293,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                 {[event.location, event.country].filter(Boolean).join(", ")}
               </span>
             )}
-            <span className="text-slate-400">TL: {event.ownerAcronym}</span>
+            <span className="text-slate-400">TL: {[event.ownerAcronym, ...(event.teamLeaderInfos || []).map((t) => t.acronym)].filter(Boolean).join(" · ")}</span>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
