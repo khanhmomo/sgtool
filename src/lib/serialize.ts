@@ -50,6 +50,7 @@ export function serializeEvent(doc: any): EventDTO {
     positions: e.positions || [],
     preSpots: e.preSpots || [],
     tactic: e.tactic || [],
+    tacticPublished: !!e.tacticPublished,
     tacticDays: e.tacticDays || [],
     hyrox: Array.isArray(e.hyrox)
       ? e.hyrox

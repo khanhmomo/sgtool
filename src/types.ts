@@ -130,6 +130,8 @@ export interface TacticDay {
   rows: TacticRow[];
   callTime?: string; // "HH:MM" — crew call time for this day
   note?: string; // general note for this day's tactic (markdown-lite)
+  /** Only published days appear on the public photographer page */
+  published?: boolean;
 }
 
 export interface CoursePoint {
@@ -262,6 +264,8 @@ export interface EventDTO {
   positions: Position[];
   preSpots: PreSpot[];
   tactic: TacticRow[];
+  /** Only shown publicly when true — TLs draft before publishing */
+  tacticPublished?: boolean;
   tacticDays: TacticDay[];
   hyrox: HyroxDayPlan[];
   course: Course | null;

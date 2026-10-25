@@ -142,11 +142,16 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
     return h * 60 + +m[2];
   };
 
-  // Multi-day events keep one tactic table per day (tacticDays); legacy single-day uses tactic
+  // Multi-day events keep one tactic table per day (tacticDays); legacy
+  // single-day uses tactic. Photographers only see published days — the
+  // TL sends the link before the tactic is finished.
+  const pubTacticDays = (event.tacticDays || []).filter((d) => d.published);
   const tacticRows =
-    (event.tacticDays || []).length > 0
-      ? (event.tacticDays[tacticDay] || event.tacticDays[0]).rows
-      : event.tactic || [];
+    pubTacticDays.length > 0
+      ? (pubTacticDays[tacticDay] || pubTacticDays[0]).rows
+      : (event.tacticDays || []).length === 0 && event.tacticPublished
+        ? event.tactic || []
+        : [];
 
   const sortedTactic = [...tacticRows]
     .filter(
@@ -252,7 +257,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   const nav = [
     { id: "briefing", label: "Briefing", icon: Megaphone, show: !!event.briefing?.trim() },
     { id: "venue", label: "Venue", icon: MapPin, show: !!event.venue.name },
-    { id: "tactic", label: "Tactic", icon: Target, show: (event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0 || d.callTime || d.note) || hyroxDays.length > 0 },
+    { id: "tactic", label: "Tactic", icon: Target, show: pubTacticDays.length > 0 || ((event.tacticDays || []).length === 0 && event.tacticPublished && (event.tactic || []).length > 0) || hyroxDays.length > 0 },
     { id: "course", label: "Course", icon: RouteIcon, show: legs.length > 0 },
     { id: "files", label: "Files", icon: FolderOpen, show: files.length > 0 },
     { id: "hotel", label: "Hotel", icon: BedDouble, show: event.hotels.some((h) => h.name) },
@@ -397,11 +402,11 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
               dayNote={(hyroxDays[hyroxDay] || hyroxDays[0]).note}
             />
           </Section>
-        ) : ((event.tactic || []).length > 0 || (event.tacticDays || []).some((d) => d.rows.length > 0 || d.callTime || d.note)) && (
+        ) : (pubTacticDays.length > 0 || ((event.tacticDays || []).length === 0 && event.tacticPublished && (event.tactic || []).length > 0)) && (
           <Section id="tactic" icon={<Target size={16} />} title="Tactic">
-            {(event.tacticDays || []).length > 1 && (
+            {pubTacticDays.length > 1 && (
               <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                {event.tacticDays.map((d, i) => (
+                {pubTacticDays.map((d, i) => (
                   <button
                     key={d.date || i}
                     onClick={() => setTacticDay(i)}
@@ -453,9 +458,9 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
               </select>
             </div>
             {(event.tacticDays || []).length <= 1 &&
-              (event.tacticDays[0]?.callTime) && (
+              (pubTacticDays[0]?.callTime) && (
                 <p className="mb-2 inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
-                  <AlarmClock size={12} /> Call {event.tacticDays[0].callTime}
+                  <AlarmClock size={12} /> Call {pubTacticDays[0].callTime}
                 </p>
               )}
             <div className="overflow-x-auto rounded-md border border-slate-200">
@@ -564,8 +569,8 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
               </table>
             </div>
             {(() => {
-              const day = event.tacticDays[tacticDay] || event.tacticDays[0];
-              const withCall = (event.tacticDays || []).filter((d) => d.callTime);
+              const day = pubTacticDays[tacticDay] || pubTacticDays[0];
+              const withCall = pubTacticDays.filter((d) => d.callTime);
               return (
                 <>
                   {withCall.length > 0 && (

@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { connectDB } from "@/lib/db";
 import { FileDoc } from "@/lib/models";
+import { purgeOrphanFiles } from "@/lib/files";
 import { serializeFile } from "@/lib/serialize";
 import { fmtDate, fmtSize, isImageMime, isPdfMime } from "@/lib/utils";
 import { Card, Empty } from "@/components/ui";
@@ -16,6 +17,8 @@ export default async function FilesPage() {
   if (!session?.user?.id) redirect("/login");
 
   await connectDB();
+  // Drop uploads no longer attached to any event/template — saves storage
+  const purged = await purgeOrphanFiles(session.user.id).catch(() => 0);
   const files = (
     await FileDoc.find({ ownerId: session.user.id })
       .populate("eventId", "name")
@@ -34,6 +37,11 @@ export default async function FilesPage() {
       </h1>
       <p className="mb-6 text-sm text-slate-500">
         All uploads across your events and Bookshelf ({files.length})
+        {purged > 0 && (
+          <span className="ml-2 text-emerald-600">
+            · {purged} unlinked {purged === 1 ? "file" : "files"} cleaned up
+          </span>
+        )}
       </p>
 
       {files.length === 0 ? (

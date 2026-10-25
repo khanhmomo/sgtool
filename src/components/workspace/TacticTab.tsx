@@ -9,6 +9,8 @@ import {
   ArrowDown,
   Wand2,
   AlarmClock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input, Select, Textarea, Notice } from "@/components/ui";
 import { uid, spotMapUrl, fmtDate } from "@/lib/utils";
@@ -157,16 +159,24 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
   const [notes, setNotes] = useState(event.notes || "");
   useAutosave(rowsState, patch, (v) => ({ tactic: v }));
   useAutosave(days, patch, (v) => ({
-    tacticDays: v.filter((d) => d.rows.length || d.callTime || d.note),
+    tacticDays: v.filter((d) => d.rows.length || d.callTime || d.note || d.published),
   }));
   useAutosave(notes, patch, (v) => ({ notes: v }));
 
   const rows = multiDay
     ? (days.find((d) => d.date === activeDate)?.rows ?? [])
     : rowsState;
-  const setDayField = (key: "callTime" | "note", value: string) => {
+  const setDayField = (key: "callTime" | "note" | "published", value: string | boolean) => {
     if (!multiDay) return;
     setDays((ds) => ds.map((d) => (d.date === activeDate ? { ...d, [key]: value } : d)));
+  };
+  // Photographers only see a tactic once it's published
+  const published = multiDay
+    ? !!days.find((d) => d.date === activeDate)?.published
+    : !!event.tacticPublished;
+  const togglePublished = () => {
+    if (multiDay) setDayField("published", !published);
+    else patch({ tacticPublished: !published });
   };
   const setRows = (fn: (rs: TacticRow[]) => TacticRow[]) => {
     if (multiDay) {
@@ -221,6 +231,15 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
           icon={<ClipboardList size={15} className="text-blue-600" />}
           action={
             <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={published ? "accent" : "outline"}
+                onClick={togglePublished}
+                title={published ? "Visible on the photographer link — click to hide" : "Hidden from photographers — click to publish"}
+              >
+                {published ? <Eye size={14} /> : <EyeOff size={14} />}
+                {published ? "Published" : "Hidden"}
+              </Button>
               {isIronman && (
                 <Button size="sm" variant="outline" onClick={generate}>
                   <Wand2 size={14} /> IRONMAN skeleton
