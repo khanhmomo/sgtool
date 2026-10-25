@@ -20,6 +20,7 @@ export function serializeEvent(doc: any): EventDTO {
     id: String(e._id),
     ownerId: String(e.ownerId),
     ownerAcronym: e.ownerAcronym || "",
+    teamLeaders: (e.teamLeaders || []).map((t: unknown) => String(t)),
     name: e.name || "",
     type: e.type || "",
     date: e.date || "",

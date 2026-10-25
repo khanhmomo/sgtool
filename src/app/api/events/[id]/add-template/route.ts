@@ -23,7 +23,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
   await connectDB();
   const [event, tpl] = await Promise.all([
-    Event.findOne({ _id: id, ownerId: user.id }),
+    Event.findOne({ _id: id, $or: [{ ownerId: user.id }, { teamLeaders: user.id }] }),
     Template.findOne({ _id: parsed.data.templateId, ownerId: user.id }),
   ]);
   if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });

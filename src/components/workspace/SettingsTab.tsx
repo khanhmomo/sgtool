@@ -10,6 +10,10 @@ import {
   Ban,
   Trash2,
   ExternalLink,
+  Users,
+  UserPlus,
+  X,
+  Search,
 } from "lucide-react";
 import {
   Button,
@@ -42,7 +46,7 @@ export default function SettingsTab({
     website: event.website, status: event.status,
   });
   const [bestofUrl, setBestofUrl] = useState(event.bestof?.link || "");
-  const [ownerId, setOwnerId] = useState(event.ownerId);
+  const [ownerId] = useState(event.ownerId);
   const [tls, setTls] = useState<{ id: string; name: string; acronym: string }[]>([]);
   useEffect(() => {
     fetch("/api/teamleaders")
@@ -55,6 +59,24 @@ export default function SettingsTab({
     const { form: f, ownerId: o, bestofUrl: b } = JSON.parse(v);
     return { ...f, status: f.status as EventStatus, ownerId: o, bestofUrl: b.trim() };
   });
+  // Co-leaders: full access like the creator. Saved immediately on add/remove.
+  const [coLeaders, setCoLeaders] = useState<string[]>(event.teamLeaders || []);
+  const [tlModal, setTlModal] = useState(false);
+  const [tlSearch, setTlSearch] = useState("");
+  const setLeaders = (ids: string[]) => {
+    setCoLeaders(ids);
+    patch({ teamLeaders: ids });
+  };
+  const tlLabel = (id: string) => {
+    const t = tls.find((x) => x.id === id);
+    return t ? `${t.acronym} — ${t.name}` : "Team leader";
+  };
+  const tlCandidates = tls
+    .filter((t) => t.id !== ownerId && !coLeaders.includes(t.id))
+    .filter((t) => {
+      const q = tlSearch.trim().toLowerCase();
+      return !q || t.acronym.toLowerCase().includes(q) || t.name.toLowerCase().includes(q);
+    });
   const [copied, setCopied] = useState(false);
   const [shareBusy, setShareBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -142,21 +164,6 @@ export default function SettingsTab({
           <Field label="Country"><Input value={form.country} onChange={set("country")} /></Field>
           <Field label="Organizer"><Input value={form.organizer} onChange={set("organizer")} /></Field>
           <Field label="Website"><Input value={form.website} onChange={set("website")} /></Field>
-          <Field label="Team leader">
-            <Select
-              value={ownerId}
-              onChange={(e) => setOwnerId(e.target.value)}
-            >
-              {!tls.some((t) => t.id === ownerId) && (
-                <option value={ownerId}>{event.ownerAcronym || "Current leader"}</option>
-              )}
-              {tls.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.acronym} — {t.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
           <Field label="Previous-year best-of (Sportograf link)" className="sm:col-span-2">
             <Input
               value={bestofUrl}
@@ -186,6 +193,104 @@ export default function SettingsTab({
           <p className="text-xs text-slate-400">Autosaves on change.</p>
         </div>
       </Card>
+
+      {/* Team leaders — creator plus co-leaders with full access */}
+      <Card>
+        <CardHeader
+          title="Team leaders"
+          icon={<Users size={15} className="text-blue-600" />}
+          action={
+            <Button size="sm" variant="outline" onClick={() => { setTlSearch(""); setTlModal(true); }}>
+              <UserPlus size={14} /> Add team leader
+            </Button>
+          }
+        />
+        <div className="divide-y divide-slate-100">
+          <div className="flex items-center justify-between px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-6 min-w-10 items-center justify-center rounded bg-slate-900 px-1.5 text-[11px] font-bold text-white">
+                {event.ownerAcronym || "TL"}
+              </span>
+              <span className="text-sm font-medium text-slate-900">{tlLabel(ownerId).split(" — ")[1] || "Event creator"}</span>
+            </div>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Creator</span>
+          </div>
+          {coLeaders.map((id) => {
+            const t = tls.find((x) => x.id === id);
+            return (
+              <div key={id} className="flex items-center justify-between px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-6 min-w-10 items-center justify-center rounded bg-slate-900 px-1.5 text-[11px] font-bold text-white">
+                    {t?.acronym || "TL"}
+                  </span>
+                  <span className="text-sm font-medium text-slate-900">{t?.name || "Team leader"}</span>
+                </div>
+                <button
+                  onClick={() => setLeaders(coLeaders.filter((x) => x !== id))}
+                  className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-red-500"
+                  title="Remove team leader"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            );
+          })}
+          {coLeaders.length === 0 && (
+            <p className="px-4 pb-3 text-xs text-slate-400">No co-leaders — only you can edit this event.</p>
+          )}
+        </div>
+      </Card>
+
+      {/* Add team leader modal */}
+      {tlModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setTlModal(false)}>
+          <div className="w-full max-w-md overflow-hidden rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+              <p className="text-sm font-bold text-slate-900">Add team leader</p>
+              <button onClick={() => setTlModal(false)} className="rounded-md p-1 text-slate-400 hover:bg-slate-100">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="px-4 pt-3">
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  autoFocus
+                  value={tlSearch}
+                  onChange={(e) => setTlSearch(e.target.value)}
+                  placeholder="Search by acronym or name…"
+                  className="w-full rounded-md border border-slate-200 py-1.5 pl-8 pr-3 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+            <div className="max-h-64 overflow-y-auto p-2">
+              {tlCandidates.length === 0 ? (
+                <p className="px-2 py-6 text-center text-xs text-slate-400">No team leaders match.</p>
+              ) : (
+                <table className="w-full text-left text-xs">
+                  <tbody>
+                    {tlCandidates.map((t) => (
+                      <tr key={t.id} className="border-b border-slate-50 last:border-0">
+                        <td className="py-2 pl-2">
+                          <span className="inline-flex h-5 min-w-10 items-center justify-center rounded bg-slate-900 px-1.5 text-[11px] font-bold text-white">
+                            {t.acronym}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 font-medium text-slate-900">{t.name}</td>
+                        <td className="py-2 pr-2 text-right">
+                          <Button size="sm" variant="outline" onClick={() => setLeaders([...coLeaders, t.id])}>
+                            Add
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sharing */}
       <Card>

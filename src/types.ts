@@ -243,6 +243,8 @@ export interface EventDTO {
   id: string;
   ownerId: string;
   ownerAcronym: string;
+  /** Additional team leaders with full access to this event */
+  teamLeaders: string[];
   name: string;
   type: string;
   date: string; // YYYY-MM-DD

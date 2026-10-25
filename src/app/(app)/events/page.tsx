@@ -22,7 +22,7 @@ export default async function EventsPage(props: {
 
   await connectDB();
   const isAdmin = (session.user as { role?: string }).role === "admin";
-  const filter: Record<string, unknown> = isAdmin ? {} : { ownerId: session.user.id };
+  const filter: Record<string, unknown> = isAdmin ? {} : { $or: [{ ownerId: session.user.id }, { teamLeaders: session.user.id }] };
   if (status) filter.status = status;
   if (isAdmin && tl) filter.ownerId = tl;
 

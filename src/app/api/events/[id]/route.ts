@@ -9,6 +9,7 @@ const PATCHABLE = new Set([
   "name", "type", "date", "endDate", "location", "country", "organizer", "website",
   "status", "venue", "hotels", "transport", "schedule", "contacts", "photographers",
   "positions", "preSpots", "tactic", "tacticPublished", "tacticDays", "course", "documents", "checklist", "notes",
+  "teamLeaders",
   "hyrox", "briefing", "requests",
 ]);
 
@@ -17,7 +18,10 @@ type Ctx = { params: Promise<{ id: string }> };
 async function ownedEvent(id: string, user: { id: string; role?: string }) {
   await connectDB();
   const filter: Record<string, unknown> = { _id: id };
-  if (user.role !== "admin") filter.ownerId = user.id; // admins can access any event
+  if (user.role !== "admin") {
+    // creator or any added team leader gets full access
+    filter.$or = [{ ownerId: user.id }, { teamLeaders: user.id }];
+  }
   return Event.findOne(filter);
 }
 

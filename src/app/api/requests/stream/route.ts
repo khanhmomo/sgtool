@@ -18,7 +18,10 @@ export async function GET(req: Request) {
 
   await connectDB();
   const filter: Record<string, unknown> = { _id: id };
-  if ((user as { role?: string }).role !== "admin") filter.ownerId = (user as { id: string }).id;
+  if ((user as { role?: string }).role !== "admin") {
+    const uid = (user as { id: string }).id;
+    filter.$or = [{ ownerId: uid }, { teamLeaders: uid }];
+  }
   const ev = await Event.findOne(filter).select("_id").lean();
   if (!ev) return new Response("Not found", { status: 404 });
 

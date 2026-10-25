@@ -22,6 +22,8 @@ const EventSchema = new Schema(
   {
     ownerId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     ownerAcronym: { type: String, default: "" },
+    // Additional team leaders with the same access as the creator
+    teamLeaders: { type: [Schema.Types.ObjectId], ref: "User", default: [], index: true },
     name: { type: String, required: true },
     type: { type: String, default: "Triathlon" },
     date: { type: String, default: "" }, // YYYY-MM-DD

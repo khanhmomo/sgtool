@@ -14,7 +14,7 @@ export async function GET(req: Request) {
 
   await connectDB();
   const rx = { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
-  const scope = user.role === "admin" ? {} : { ownerId: user.id }; // admins search everything
+  const scope = user.role === "admin" ? {} : { $or: [{ ownerId: user.id }, { teamLeaders: user.id }] }; // admins search everything
 
   const [events, templates, files] = await Promise.all([
     Event.find({

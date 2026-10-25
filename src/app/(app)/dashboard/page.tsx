@@ -17,7 +17,7 @@ export default async function DashboardPage() {
   const acronym = (session.user as { acronym?: string }).acronym || "";
 
   await connectDB();
-  const events = (await Event.find({ ownerId: session.user.id }).sort({ date: -1 }).lean()).map(
+  const events = (await Event.find({ $or: [{ ownerId: session.user.id }, { teamLeaders: session.user.id }] }).sort({ date: -1 }).lean()).map(
     serializeEvent
   );
 
