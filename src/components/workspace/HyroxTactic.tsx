@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlarmClock, AlertTriangle, BookOpen, Copy, Download, Plus, Trash2, Users, X } from "lucide-react";
+import { AlarmClock, AlertTriangle, BookOpen, Copy, Download, Eye, EyeOff, Plus, Trash2, Users, X } from "lucide-react";
 import { Button, Card, CardHeader, Input, Textarea } from "@/components/ui";
 import { cn, fmtDate, uid } from "@/lib/utils";
 import Markdown from "@/components/Markdown";
@@ -534,6 +534,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
     return [...new Set(dates)].sort().map((date) => ({
       date,
       callTime: event.hyrox?.find((x) => x.date === date)?.callTime || "",
+      published: !!event.hyrox?.find((x) => x.date === date)?.published,
       tactic: normTactic(event.hyrox?.find((x) => x.date === date)?.tactic || defaultTactic()),
     }));
   });
@@ -563,6 +564,14 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
 
   const setDayNote = (v: string) => {
     const nextDays = days.map((d) => (d.date === activeDate ? { ...d, note: v } : d));
+    setDays(nextDays);
+    saveDays(nextDays);
+  };
+
+  // Photographers only see a day's tactic once it's published
+  const published = !!day?.published;
+  const togglePublished = () => {
+    const nextDays = days.map((d) => (d.date === activeDate ? { ...d, published: !d.published } : d));
     setDays(nextDays);
     saveDays(nextDays);
   };
@@ -744,7 +753,22 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
               </button>
             );
           })}
-          <span className="ml-auto flex items-center gap-1 text-xs font-medium text-slate-500">
+          <button
+            type="button"
+            onClick={togglePublished}
+            title={published ? "Visible on the photographer link — click to hide" : "Hidden from photographers — click to publish"}
+            className={`relative ml-auto flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${published ? "bg-emerald-500" : "bg-slate-300"}`}
+          >
+            <span
+              className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-white shadow transition-transform ${published ? "translate-x-[22px]" : "translate-x-0.5"}`}
+            >
+              {published ? <Eye size={11} className="text-emerald-600" /> : <EyeOff size={11} className="text-slate-400" />}
+            </span>
+          </button>
+          <span className={`text-xs font-semibold ${published ? "text-emerald-600" : "text-slate-400"}`}>
+            {published ? "Published" : "Hidden"}
+          </span>
+          <span className="flex items-center gap-1 text-xs font-medium text-slate-500">
             Call time
             <Input
               type="time"

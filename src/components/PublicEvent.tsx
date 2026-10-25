@@ -119,9 +119,10 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   const [tacticSort, setTacticSort] = useState<"order" | "spot" | "photographer" | "arrival">("order");
   const [tacticFilter, setTacticFilter] = useState("");
   const [hyroxDay, setHyroxDay] = useState(0);
-  // Show only days inside the event date range — stale saved days outside the
-  // range are visible in the editor for recovery but hidden on the public page.
+  // Show only PUBLISHED days inside the event date range — stale saved days
+  // outside the range are visible in the editor for recovery but hidden here.
   const hyroxDays = (event.hyrox || []).filter((d) => {
+    if (!d.published) return false;
     const start = event.date.slice(0, 10);
     const end = (event.endDate || "").slice(0, 10);
     return !start || (d.date >= start && (!end || d.date <= end));

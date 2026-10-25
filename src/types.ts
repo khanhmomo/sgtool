@@ -226,6 +226,8 @@ export interface HyroxDayPlan {
   date: string; // YYYY-MM-DD
   callTime: string; // "HH:MM" — crew call time for this day
   note?: string; // per-day note shown on the public tactic view
+  /** Only published days appear on the public photographer page */
+  published?: boolean;
   tactic: HyroxTactic;
 }
 
