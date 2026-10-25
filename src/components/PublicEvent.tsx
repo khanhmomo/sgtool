@@ -603,21 +603,25 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
               ))}
             </div>
             {(() => {
-              // Only show spots that appear on the tactic, in tactic row colors.
-              // A spot's key matches a position via photographer or id.
-              const allRows = (event.tacticDays?.length
-                ? event.tacticDays.flatMap((d) => d.rows)
-                : event.tactic) || [];
+              // Only show spots that appear on a PUBLISHED tactic, in row
+              // colors. A spot's key matches a position via photographer or id.
+              // Hidden tactic → no spots on the map either.
+              const hasTacticData =
+                (event.tacticDays || []).length > 0 || (event.tactic || []).length > 0;
+              const pubRows = pubTacticDays.length
+                ? pubTacticDays.flatMap((d) => d.rows)
+                : event.tacticPublished
+                  ? event.tactic || []
+                  : [];
               const spotColor = new Map<string, string>();
-              for (const r of allRows) {
+              for (const r of pubRows) {
                 if (r.spot && !spotColor.has(r.spot)) spotColor.set(r.spot, r.color || "");
               }
-              const mapPositions =
-                spotColor.size === 0
-                  ? event.positions // no tactic yet — show everything like before
-                  : (event.positions || []).filter((p) =>
-                      spotColor.has(p.photographer || p.id)
-                    );
+              const mapPositions = !hasTacticData
+                ? event.positions // no tactic exists yet — show all like before
+                : (event.positions || []).filter((p) =>
+                    spotColor.has(p.photographer || p.id)
+                  );
               const positionColors = Object.fromEntries(
                 mapPositions
                   .map((p) => {
