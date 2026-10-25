@@ -597,7 +597,39 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                 </span>
               ))}
             </div>
-            <CourseMap legs={legs} positions={event.positions} height={320} />
+            {(() => {
+              // Only show spots that appear on the tactic, in tactic row colors.
+              // A spot's key matches a position via photographer or id.
+              const allRows = (event.tacticDays?.length
+                ? event.tacticDays.flatMap((d) => d.rows)
+                : event.tactic) || [];
+              const spotColor = new Map<string, string>();
+              for (const r of allRows) {
+                if (r.spot && !spotColor.has(r.spot)) spotColor.set(r.spot, r.color || "");
+              }
+              const mapPositions =
+                spotColor.size === 0
+                  ? event.positions // no tactic yet — show everything like before
+                  : (event.positions || []).filter((p) =>
+                      spotColor.has(p.photographer || p.id)
+                    );
+              const positionColors = Object.fromEntries(
+                mapPositions
+                  .map((p) => {
+                    const c = spotColor.get(p.photographer || p.id);
+                    return c ? [p.id, c] : null;
+                  })
+                  .filter((e): e is [string, string] => !!e)
+              );
+              return (
+                <CourseMap
+                  legs={legs}
+                  positions={mapPositions}
+                  positionColors={positionColors}
+                  height={320}
+                />
+              );
+            })()}
           </Section>
         )}
 

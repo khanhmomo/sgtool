@@ -17,6 +17,8 @@ interface Props {
   onMapClick?: (lat: number, lng: number) => void;
   /** Point under the elevation-chart cursor — shows a moving dot on the map */
   hoverPoint?: { lat: number; lng: number } | null;
+  /** Override marker background per position id (e.g. tactic row color) */
+  positionColors?: Record<string, string>;
   height?: number;
 }
 
@@ -35,6 +37,7 @@ export default function CourseMap({
   onSelectPosition,
   onMapClick,
   hoverPoint,
+  positionColors,
   height = 420,
 }: Props) {
   const elRef = useRef<HTMLDivElement>(null);
@@ -128,9 +131,14 @@ export default function CourseMap({
         const label = pos.id.length > 24 ? `${pos.id.slice(0, 23)}…` : `${pos.id}`;
         const w = Math.max(isSel ? 44 : 36, label.length * 7 + 14);
         const h = isSel ? 22 : 18;
+        const bg = positionColors?.[pos.id] || meta.hex;
+        // Light tactic colors (e.g. #fef3c7) need dark text to stay readable
+        const hexNum = /^#?[0-9a-f]{6}$/i.test(bg) ? parseInt(bg.replace("#", ""), 16) : 0;
+        const lum = (0.299 * (hexNum >> 16) + 0.587 * ((hexNum >> 8) & 255) + 0.114 * (hexNum & 255)) / 255;
+        const fg = lum > 0.6 ? "#1e293b" : "#ffffff";
         const icon = leaflet.divIcon({
           className: "",
-          html: `<div class="pos-marker" style="background:${meta.hex};width:${w}px;height:${h}px;padding:0 5px;${isSel ? "outline:3px solid #fbbf24;" : ""}">${label}</div>`,
+          html: `<div class="pos-marker" style="background:${bg};color:${fg};width:${w}px;height:${h}px;padding:0 5px;${isSel ? "outline:3px solid #fbbf24;" : ""}">${label}</div>`,
           iconSize: [w + 2, h + 2],
           iconAnchor: [(w + 2) / 2, (h + 2) / 2],
         });
@@ -214,7 +222,7 @@ export default function CourseMap({
       renderLayers(leaflet);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [legs, positions, preSpots, showCourse, showPositions, selectedId]);
+  }, [legs, positions, preSpots, showCourse, showPositions, selectedId, positionColors]);
 
   // Elevation-chart hover dot — lightweight, updates without re-rendering layers
   useEffect(() => {
