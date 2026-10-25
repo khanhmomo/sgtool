@@ -231,15 +231,21 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
           icon={<ClipboardList size={15} className="text-blue-600" />}
           action={
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant={published ? "accent" : "outline"}
+              <button
+                type="button"
                 onClick={togglePublished}
                 title={published ? "Visible on the photographer link — click to hide" : "Hidden from photographers — click to publish"}
+                className={`relative flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${published ? "bg-emerald-500" : "bg-slate-300"}`}
               >
-                {published ? <Eye size={14} /> : <EyeOff size={14} />}
+                <span
+                  className={`absolute flex h-5 w-5 items-center justify-center rounded-full bg-white shadow transition-transform ${published ? "translate-x-[22px]" : "translate-x-0.5"}`}
+                >
+                  {published ? <Eye size={11} className="text-emerald-600" /> : <EyeOff size={11} className="text-slate-400" />}
+                </span>
+              </button>
+              <span className={`text-xs font-semibold ${published ? "text-emerald-600" : "text-slate-400"}`}>
                 {published ? "Published" : "Hidden"}
-              </Button>
+              </span>
               {isIronman && (
                 <Button size="sm" variant="outline" onClick={generate}>
                   <Wand2 size={14} /> IRONMAN skeleton
