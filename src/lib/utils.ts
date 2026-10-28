@@ -39,6 +39,27 @@ export function fmtDistances(ds: number[]): string {
   return ds.length ? ds.map((d) => `${d.toFixed(1)} km`).join(" / ") : "—";
 }
 
+// ── Fixed-date rule ─────────────────────────────────────────────────────────
+// Event dates/times belong to the EVENT, not the viewer. All calendar-day math
+// must produce identical output for every viewer regardless of their timezone:
+// parse `YYYY-MM-DD` with a `T00:00:00` suffix (local midnight) and read back
+// local date parts — never toISOString()/UTC conversion, which shifts the day
+// for viewers east or west of UTC.
+
+/** Inclusive `YYYY-MM-DD` list from start→end (end clamps to start when earlier). */
+export function dateRangeYmd(start: string, end?: string, max = 30): string[] {
+  const out: string[] = [];
+  if (!start) return out;
+  const d = new Date(`${start}T00:00:00`);
+  const last = new Date(`${end && end >= start ? end : start}T00:00:00`);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  while (d <= last && out.length < max) {
+    out.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
 export function slugify(s: string): string {
   return s
     .toLowerCase()

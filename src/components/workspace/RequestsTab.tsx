@@ -104,7 +104,7 @@ export default function RequestsTab({ event, patch }: TabProps) {
                       {r.name}
                       {r.acronym && <span className="ml-1.5 text-xs font-bold text-slate-400">{r.acronym}</span>}
                     </span>
-                    <span className="hidden text-xs text-slate-400 sm:inline">{fmtDate(r.createdAt.slice(0, 10))}</span>
+                    <span className="hidden text-xs text-slate-400 sm:inline">{fmtDate(r.createdAt)}</span>
                     <ChevronDown size={14} className={cn("shrink-0 text-slate-400 transition-transform", open === r.id && "rotate-180")} />
                   </button>
                   {/* Expanded body */}

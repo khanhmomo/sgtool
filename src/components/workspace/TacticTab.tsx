@@ -13,7 +13,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input, Select, Textarea, Notice } from "@/components/ui";
-import { uid, spotMapUrl, fmtDate } from "@/lib/utils";
+import { uid, spotMapUrl, fmtDate, dateRangeYmd } from "@/lib/utils";
 import type { TacticDay, TacticRow } from "@/types";
 import type { TabProps } from "./EventWorkspace";
 import HyroxTactic from "./HyroxTactic";
@@ -110,20 +110,7 @@ const newRow = (spot = ""): TacticRow => ({
   ls: "",
 });
 
-/** Inclusive YYYY-MM-DD date list from start → end (capped at 30 days).
- *  Uses local date parts — toISOString would shift the day for editors east of UTC. */
-function dateRange(start: string, end: string): string[] {
-  const out: string[] = [];
-  if (!start) return out;
-  const d = new Date(start + "T00:00:00");
-  const stop = end ? new Date(end + "T00:00:00") : d;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  while (d <= stop && out.length < 30) {
-    out.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
-    d.setDate(d.getDate() + 1);
-  }
-  return out;
-}
+const dateRange = (start: string, end: string) => dateRangeYmd(start, end, 30);
 
 export default function TacticTab({ event, patch, setEvent, saving }: TabProps) {
   const isIronman = /ironman|triathlon/i.test(event.type);

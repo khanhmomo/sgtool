@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { Badge, Card } from "@/components/ui";
 import { STATUS_META, SPORT_META } from "@/lib/design";
-import { fmtDate, isImageMime, isPdfMime, cn, spotMapUrl } from "@/lib/utils";
+import { fmtDate, isImageMime, isPdfMime, cn, spotMapUrl, dateRangeYmd } from "@/lib/utils";
 import { extractCoords, isShortMapLink } from "@/lib/coords";
 import type { ParsedCoords } from "@/lib/coords";
 import tzLookup from "tz-lookup";
@@ -648,15 +648,9 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
           // indoor formats (HYROX / Fitness Indoor) don't need a forecast
           const outdoor = !/hyrox|indoor/i.test(event.type);
           if (!outdoor) return null;
-          // Every day of the event gets its own 24h card
-          const dates: string[] = [];
-          if (event.date) {
-            const d0 = new Date(`${event.date}T00:00:00`);
-            const d1 = event.endDate ? new Date(`${event.endDate}T00:00:00`) : d0;
-            for (const d = new Date(d0); d <= d1 && dates.length < 7; d.setDate(d.getDate() + 1)) {
-              dates.push(d.toISOString().slice(0, 10));
-            }
-          }
+          // Every day of the event gets its own 24h card — fixed event dates,
+          // never shifted by the viewer's timezone (see dateRangeYmd)
+          const dates = dateRangeYmd(event.date, event.endDate, 7);
           if (!dates.length) return null;
           return (
             <Section id="weather" icon={<CloudSun size={16} />} title="Weather forecast">

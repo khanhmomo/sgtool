@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlarmClock, AlertTriangle, BookOpen, Copy, Download, Eye, EyeOff, Plus, Trash2, Users, X } from "lucide-react";
 import { Button, Card, CardHeader, Input, Textarea } from "@/components/ui";
-import { cn, fmtDate, uid } from "@/lib/utils";
+import { cn, fmtDate, uid, dateRangeYmd } from "@/lib/utils";
 import Markdown from "@/components/Markdown";
 import type { HyroxBreakRange, HyroxBreakTable, HyroxDayPlan, HyroxStationPlan, HyroxSwitchGroup, HyroxTactic, TemplateDTO } from "@/types";
 import type { TabProps } from "./EventWorkspace";
@@ -508,20 +508,7 @@ const normTactic = (t: HyroxTactic): HyroxTactic => ({
   breaks: normBreakTables(t.breaks),
 });
 
-/** Inclusive YYYY-MM-DD range — built from local date parts, never toISOString
- *  (UTC conversion would shift the day for editors in timezones ahead of UTC). */
-function dateRange(start: string, end: string): string[] {
-  const out: string[] = [];
-  if (!start) return out;
-  const d = new Date(`${start}T00:00:00`);
-  const last = new Date(`${(end && end >= start ? end : start)}T00:00:00`);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  for (let i = 0; i < 60 && d <= last; i++) {
-    out.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
-    d.setDate(d.getDate() + 1);
-  }
-  return out;
-}
+const dateRange = (start: string, end: string) => dateRangeYmd(start, end, 60);
 
 export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const [days, setDays] = useState<HyroxDayPlan[]>(() => {
