@@ -198,10 +198,16 @@ export interface HyroxSwitchGroup {
   photographers: string[]; // ordered — 1st moves to 2nd's station, etc.
 }
 
-/** Per-shift break table: one column per break window, rows keyed by station 1-3 */
+/** One scheduled break for a station — window plus who covers it */
+export interface HyroxBreakRow {
+  start: string; // "HH:MM"
+  end: string;
+  cover: string; // photographer covering the station during this window
+}
+
+/** Per-shift break table: stations 1-3 each keep their own break rows */
 export interface HyroxBreakTable {
-  times: HyroxBreakRange[]; // times[i] = time window of break column i
-  rows: Record<string, string[]>; // rows[station][i] = photographer covering break i
+  rows: Record<string, HyroxBreakRow[]>; // rows[station] = that station's breaks
 }
 
 /** Legacy flat break row (pre-redesign) */

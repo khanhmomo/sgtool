@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AlarmClock, AlertTriangle, BookOpen, Copy, Download, Eye, EyeOff, Plus, Trash2, Users, X } from "lucide-react";
-import { Button, Card, CardHeader, Input, Textarea } from "@/components/ui";
+import { Button, Card, CardHeader, Input, Select, Textarea } from "@/components/ui";
 import { cn, fmtDate, uid, dateRangeYmd } from "@/lib/utils";
 import Markdown from "@/components/Markdown";
-import type { HyroxBreakRange, HyroxBreakTable, HyroxDayPlan, HyroxStationPlan, HyroxSwitchGroup, HyroxTactic, TemplateDTO } from "@/types";
+import type { HyroxBreakRange, HyroxBreakRow, HyroxBreakTable, HyroxDayPlan, HyroxStationPlan, HyroxSwitchGroup, HyroxTactic, TemplateDTO } from "@/types";
 import type { TabProps } from "./EventWorkspace";
 
 /** Fixed HYROX stations — never reordered or renamed by the user */
@@ -213,10 +213,16 @@ const fmtT = (t: string) => {
 };
 
 /** Read-only tactic view for the photographer site */
+/** A break row that carries real content — skip fully-empty placeholder rows */
+const nonEmptyBreak = (b: HyroxBreakRow) => !!(b.cover || b.start || b.end);
+
 export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: HyroxTactic; team?: string[]; callTime?: string; dayNote?: string }) {
   const shifts = hyrox.shifts || [];
   const groups = hyrox.switchGroups || [];
-  const breaks = hyrox.breaks || [];
+  const breaks = normBreakTables(hyrox.breaks);
+  // Break tables are indexed by shift — only show those whose shift still exists
+  const breakHas = (si: number) =>
+    si < shifts.length && BREAK_STATIONS.some((s) => (breaks[si]?.rows?.[s] || []).some(nonEmptyBreak));
   const maxP = Math.max(0, ...groups.map((g) => g.photographers.length));
   const teamSet = new Set(team || []);
   const chip = (v: string, cls: string) =>
@@ -393,10 +399,10 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
         </div>
       )}
 
-      {breaks.some((t) => (t?.times?.length || 0) > 0) && (
+      {breaks.some((_, si) => breakHas(si)) && (
         <div className="space-y-4">
           {breaks.map((t, si) =>
-            t?.times?.length ? (
+            breakHas(si) ? (
               <div key={si}>
                 <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   Break schedule — stations 1–3{shifts.length > 1 ? ` (Shift ${si + 1})` : ""}
@@ -406,57 +412,67 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                     <thead>
                       <tr className="bg-[#FFED00] text-[10px] uppercase tracking-wider text-slate-900">
                         <th className="border border-slate-900 px-3 py-2">Station</th>
-                        {t.times.map((b, bi) => (
-                          <th key={bi} className="border border-slate-900 px-3 py-2 whitespace-nowrap">
-                            {fmtT(b.start)}–{fmtT(b.end)}
-                          </th>
-                        ))}
+                        <th className="border border-slate-900 px-3 py-2">Break</th>
+                        <th className="border border-slate-900 px-3 py-2">Covered by</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {BREAK_STATIONS.map((station) => (
-                        <tr
-                          key={station}
-                          className={cn("text-slate-900", STATION_PASTEL[station] || "bg-slate-50")}
-                        >
-                          <td className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">
-                            {station}
-                          </td>
-                          {t.times.map((_, bi) => (
-                            <td key={bi} className="border border-slate-900 px-3 py-2 font-bold">
-                              {(t.rows?.[station] || [])[bi] || "—"}
+                      {BREAK_STATIONS.flatMap((station) => {
+                        const list = (t.rows?.[station] || []).filter(nonEmptyBreak);
+                        return list.map((b, bi) => (
+                          <tr key={`${station}-${bi}`} className="text-slate-900">
+                            {bi === 0 && (
+                              <td
+                                rowSpan={list.length}
+                                className={cn(
+                                  "border border-slate-900 px-3 py-2 font-bold whitespace-nowrap",
+                                  STATION_PASTEL[station] || "bg-slate-50"
+                                )}
+                              >
+                                {station}
+                              </td>
+                            )}
+                            <td className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">
+                              {fmtT(b.start)}–{fmtT(b.end)}
                             </td>
-                          ))}
-                        </tr>
-                      ))}
+                            <td className="border border-slate-900 px-3 py-2 font-bold">
+                              {b.cover || "—"}
+                            </td>
+                          </tr>
+                        ));
+                      })}
                     </tbody>
                   </table>
                 </div>
                 {/* Mobile: stacked station cards, one line per break */}
                 <div className="space-y-1.5 sm:hidden">
-                  {BREAK_STATIONS.map((station) => (
-                    <div
-                      key={station}
-                      className={cn(
-                        "rounded-md border border-slate-900 p-2.5 text-slate-900",
-                        STATION_PASTEL[station] || "bg-slate-50"
-                      )}
-                    >
-                      <p className="mb-1 text-xs font-black uppercase tracking-wide">
-                        <span className="rounded bg-[#FFED00] px-1.5 py-0.5">{station}</span>
-                      </p>
-                      <div className="space-y-0.5 text-xs font-bold">
-                        {t.times.map((b, bi) => (
-                          <div key={bi} className="flex items-baseline gap-2">
-                            <span className="shrink-0 whitespace-nowrap opacity-80">
-                              {fmtT(b.start)}–{fmtT(b.end)}
-                            </span>
-                            <span>{(t.rows?.[station] || [])[bi] || "—"}</span>
-                          </div>
-                        ))}
+                  {BREAK_STATIONS.map((station) => {
+                    const list = (t.rows?.[station] || []).filter(nonEmptyBreak);
+                    if (!list.length) return null;
+                    return (
+                      <div
+                        key={station}
+                        className={cn(
+                          "rounded-md border border-slate-900 p-2.5 text-slate-900",
+                          STATION_PASTEL[station] || "bg-slate-50"
+                        )}
+                      >
+                        <p className="mb-1 text-xs font-black uppercase tracking-wide">
+                          <span className="rounded bg-[#FFED00] px-1.5 py-0.5">{station}</span>
+                        </p>
+                        <div className="space-y-0.5 text-xs font-bold">
+                          {list.map((b, bi) => (
+                            <div key={bi} className="flex items-baseline gap-2">
+                              <span className="shrink-0 whitespace-nowrap opacity-80">
+                                {fmtT(b.start)}–{fmtT(b.end)}
+                              </span>
+                              <span>{b.cover || "—"}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : null
@@ -472,28 +488,39 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
   );
 }
 
-/** Normalize stored breaks (legacy free-text → ranges) inside a tactic */
+/** Normalize stored breaks to per-station rows. Handles two legacy shapes:
+ *  flat HyroxBreak[] (station/photographer/start/end) and the shared-times
+ *  matrix {times, rows: Record<station, string[]>} — a station owned a break
+ *  window only when its cover cell was filled. */
 const normBreakTables = (b: unknown): HyroxBreakTable[] => {
-  if (!Array.isArray(b)) return [];
-  if (!b.length) return [];
-  // legacy flat HyroxBreak[] → single table grouped by time window
+  if (!Array.isArray(b) || !b.length) return [];
+  // legacy flat HyroxBreak[]
   if (typeof b[0] === "object" && b[0] && "station" in b[0]) {
     const legacy = b as { station: string; photographer: string; start: string; end: string }[];
-    const times: HyroxBreakRange[] = [];
-    const rows: Record<string, string[]> = {};
+    const rows: Record<string, HyroxBreakRow[]> = {};
     for (const l of legacy) {
-      let bi = times.findIndex((t) => t.start === l.start && t.end === l.end);
-      if (bi < 0) { times.push({ start: l.start, end: l.end }); bi = times.length - 1; }
-      (rows[l.station] ||= [])[bi] = l.photographer;
+      (rows[l.station] ||= []).push({ start: l.start || "", end: l.end || "", cover: l.photographer || "" });
     }
-    return [{ times, rows }];
+    return [{ rows }];
   }
-  return b as HyroxBreakTable[];
+  return (b as { times?: HyroxBreakRange[]; rows?: Record<string, unknown> }[]).map((t) => {
+    if (!t || typeof t !== "object") return { rows: {} };
+    // already per-station shape
+    if (!Array.isArray(t.times)) return { rows: (t.rows || {}) as Record<string, HyroxBreakRow[]> };
+    // shared-times matrix → keep windows the station actually covered
+    const rows: Record<string, HyroxBreakRow[]> = {};
+    for (const [station, covers] of Object.entries(t.rows || {})) {
+      const list = t.times
+        .map((tm, i) => ({ start: tm.start || "", end: tm.end || "", cover: String((covers as string[])[i] || "") }))
+        .filter((r) => r.cover);
+      if (list.length) rows[station] = list;
+    }
+    return { rows };
+  });
 };
 
-const normTactic = (t: HyroxTactic): HyroxTactic => ({
-  ...t,
-  shifts: (t.shifts || []).map((sh) => {
+const normTactic = (t: HyroxTactic): HyroxTactic => {
+  const shifts = (t.shifts || []).map((sh) => {
     const rows = sh.map((st) => ({
       ...st,
       ls: Array.isArray(st.ls) ? st.ls : [],
@@ -504,9 +531,11 @@ const normTactic = (t: HyroxTactic): HyroxTactic => ({
       if (!rows.some((r) => r.station === s)) rows.push(blankStation(s));
     }
     return rows;
-  }),
-  breaks: normBreakTables(t.breaks),
-});
+  });
+  // break tables are indexed by shift — drop orphans left behind when a shift
+  // was removed (their data is unreachable in the editor)
+  return { ...t, shifts, breaks: normBreakTables(t.breaks).slice(0, shifts.length) };
+};
 
 const dateRange = (start: string, end: string) => dateRangeYmd(start, end, 60);
 
@@ -528,6 +557,8 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const [activeDate, setActiveDate] = useState(days[0]?.date || "");
   /** Shift index whose break schedule is open in the fullscreen editor, or null */
   const [breakEdit, setBreakEdit] = useState<number | null>(null);
+  /** Station currently selected inside the break editor */
+  const [breakStation, setBreakStation] = useState<string>(BREAK_STATIONS[0]);
 
   const day = days.find((d) => d.date === activeDate);
   const tactic = day?.tactic || defaultTactic();
@@ -599,7 +630,12 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
     });
 
   const addShift = () => touch({ ...tactic, shifts: [...tactic.shifts, HYROX_STATIONS.map(blankStation)] });
-  const removeShift = (i: number) => touch({ ...tactic, shifts: tactic.shifts.filter((_, x) => x !== i) });
+  const removeShift = (i: number) =>
+    touch({
+      ...tactic,
+      shifts: tactic.shifts.filter((_, x) => x !== i),
+      breaks: tactic.breaks.filter((_, x) => x !== i), // break tables follow their shift
+    });
 
   const addGroup = () =>
     touch({ ...tactic, switchGroups: [...tactic.switchGroups, { id: uid(), name: `Group ${tactic.switchGroups.length + 1}`, photographers: [""] }] });
@@ -608,36 +644,20 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const removeGroup = (id: string) =>
     touch({ ...tactic, switchGroups: tactic.switchGroups.filter((g) => g.id !== id) });
 
-  // Break tables indexed by shift — columns are break windows, rows are stations 1-3
-  const breakTable = (si: number): HyroxBreakTable =>
-    tactic.breaks[si] || { times: [], rows: {} };
-  const setBreakTable = (si: number, t: HyroxBreakTable) => {
+  // Break schedules indexed by shift — each of stations 1-3 owns its break rows
+  const breakRows = (si: number, station: string): HyroxBreakRow[] =>
+    tactic.breaks[si]?.rows?.[station] || [];
+  const setBreakRows = (si: number, station: string, list: HyroxBreakRow[]) => {
     const breaks = [...tactic.breaks];
-    breaks[si] = t;
+    breaks[si] = { rows: { ...(breaks[si]?.rows || {}), [station]: list } };
     touch({ ...tactic, breaks });
   };
-  const addBreakCol = (si: number) => {
-    const t = breakTable(si);
-    const rows: Record<string, string[]> = {};
-    for (const [s, r] of Object.entries(t.rows || {})) rows[s] = [...(r || []), ""];
-    setBreakTable(si, { times: [...(t.times || []), { start: "", end: "" }], rows });
-  };
-  const removeBreakCol = (si: number, bi: number) => {
-    const t = breakTable(si);
-    const rows: Record<string, string[]> = {};
-    for (const [s, r] of Object.entries(t.rows || {})) rows[s] = (r || []).filter((_, i) => i !== bi);
-    setBreakTable(si, { times: (t.times || []).filter((_, i) => i !== bi), rows });
-  };
-  const setBreakTime = (si: number, bi: number, p: Partial<HyroxBreakRange>) => {
-    const t = breakTable(si);
-    setBreakTable(si, { ...t, times: (t.times || []).map((x, i) => (i === bi ? { ...x, ...p } : x)) });
-  };
-  const setBreakCell = (si: number, station: string, bi: number, name: string) => {
-    const t = breakTable(si);
-    const row = [...(t.rows?.[station] || [])];
-    row[bi] = name;
-    setBreakTable(si, { ...t, rows: { ...(t.rows || {}), [station]: row } });
-  };
+  const addBreakRow = (si: number, station: string) =>
+    setBreakRows(si, station, [...breakRows(si, station), { start: "", end: "", cover: "" }]);
+  const setBreakRow = (si: number, station: string, bi: number, p: Partial<HyroxBreakRow>) =>
+    setBreakRows(si, station, breakRows(si, station).map((r, x) => (x === bi ? { ...r, ...p } : r)));
+  const removeBreakRow = (si: number, station: string, bi: number) =>
+    setBreakRows(si, station, breakRows(si, station).filter((_, x) => x !== bi));
 
   const removeName = (si: number, sti: number, key: "photographers" | "cover" | "ls", name: string) =>
     setShiftStation(si, sti, { [key]: tactic.shifts[si][sti][key].filter((n) => n !== name) });
@@ -1053,11 +1073,9 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
           icon={<Users size={15} className="text-blue-600" />}
         />
         <div className="flex flex-wrap items-center gap-2 px-4 pb-4">
-          {tactic.shifts.map((_, si) => (
-            <Button key={si} variant="outline" size="sm" onClick={() => setBreakEdit(si)}>
-              Edit breaks{tactic.shifts.length > 1 ? ` — Shift ${si + 1}` : ""}
-            </Button>
-          ))}
+          <Button variant="outline" size="sm" onClick={() => setBreakEdit(0)}>
+            Edit breaks
+          </Button>
           <NoteEditor
             label="Instruction"
             value={tactic.breakNote || ""}
@@ -1091,102 +1109,118 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
         </div>
       </Card>
 
-      {/* Fullscreen break-schedule editor */}
+      {/* Fullscreen break-schedule editor — station picker + line-per-break list */}
       {breakEdit !== null && (() => {
         const si = breakEdit;
-        const t = breakTable(si);
-        const times = t.times || [];
-        const rows = t.rows || {};
+        const station = BREAK_STATIONS.includes(breakStation) ? breakStation : BREAK_STATIONS[0];
+        const list = breakRows(si, station);
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="flex max-h-[92vh] w-full max-w-[95vw] flex-col overflow-hidden rounded-lg bg-white shadow-xl">
+            <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                 <p className="text-sm font-bold text-slate-700">
                   Break schedule — Stations 1–3{tactic.shifts.length > 1 ? ` (Shift ${si + 1})` : ""}
                 </p>
+                <Button variant="ghost" size="sm" onClick={() => setBreakEdit(null)}>
+                  <X size={15} />
+                </Button>
+              </div>
+              <div className="flex flex-1 flex-col gap-3 overflow-hidden p-4">
+                {/* Shift + station pickers, then line-per-break rows */}
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => addBreakCol(si)}>
+                  {tactic.shifts.length > 1 && (
+                    <Select
+                      value={si}
+                      onChange={(e) => setBreakEdit(Number(e.target.value))}
+                      className="w-28"
+                    >
+                      {tactic.shifts.map((_, i) => (
+                        <option key={i} value={i}>Shift {i + 1}</option>
+                      ))}
+                    </Select>
+                  )}
+                  <Select value={station} onChange={(e) => setBreakStation(e.target.value)} className="w-48">
+                    {BREAK_STATIONS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </Select>
+                  <Button variant="outline" size="sm" className="ml-auto" onClick={() => addBreakRow(si, station)}>
                     <Plus size={12} className="mr-1" /> break
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setBreakEdit(null)}>
-                    <X size={15} />
-                  </Button>
                 </div>
-              </div>
-              <div className="flex flex-1 flex-col gap-2 overflow-hidden p-4">
                 <div className="min-h-0 flex-1 overflow-auto">
-                {times.length > 0 ? (
+                {list.length > 0 ? (
                   <div className="overflow-x-auto rounded-md border border-slate-200">
-                    <table className="w-max min-w-full text-left text-sm">
+                    <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500">
-                          <th className="sticky left-0 z-10 w-24 bg-slate-50 px-1 py-0.5 shadow-[1px_0_0_0_#e2e8f0]">Station</th>
-                          {times.map((br, bi) => (
-                            <th key={bi} className="px-0.5 py-0.5">
-                              <div className="flex items-center">
-                                <Input
-                                  inputMode="numeric"
-                                  placeholder="00:00"
-                                  value={br.start}
-                                  className="h-5 w-[38px] rounded-none p-0 text-center text-[10px]"
-                                  onChange={(e) => setBreakTime(si, bi, { start: e.target.value })}
-                                />
-                                <span className="text-[9px] text-slate-300">–</span>
-                                <Input
-                                  inputMode="numeric"
-                                  placeholder="00:00"
-                                  value={br.end}
-                                  className="h-5 w-[38px] rounded-none p-0 text-center text-[10px]"
-                                  onChange={(e) => setBreakTime(si, bi, { end: e.target.value })}
-                                />
-                                <button
-                                  title="Remove break"
-                                  onClick={() => removeBreakCol(si, bi)}
-                                  className="text-slate-400 hover:text-red-600"
-                                >
-                                  <Trash2 size={10} />
-                                </button>
-                              </div>
-                            </th>
-                          ))}
+                          <th className="w-10 px-3 py-2">#</th>
+                          <th className="px-3 py-2">Break window</th>
+                          <th className="px-3 py-2">Covered by</th>
+                          <th className="w-10" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {BREAK_STATIONS.map((station) => (
-                          <tr key={station}>
-                            <td className="sticky left-0 z-10 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-700 shadow-[1px_0_0_0_#e2e8f0]">
-                              {station} <span className="text-[9px] font-normal text-slate-400">(optional)</span>
-                            </td>
-                            {times.map((_, bi) => (
-                              <td key={bi} className="border-l border-slate-200 p-0">
+                        {list.map((b, bi) => (
+                          <tr key={bi}>
+                            <td className="px-3 py-1.5 text-xs text-slate-400">{bi + 1}</td>
+                            <td className="px-3 py-1.5">
+                              <div className="flex items-center gap-1.5">
                                 <Input
-                                  className="h-5 w-full rounded-none border-transparent px-1 text-[10px] focus:border-slate-300"
-                                  placeholder="—"
-                                  value={(rows[station] || [])[bi] || ""}
-                                  onDragOver={(e) => e.preventDefault()}
-                                  onDrop={(e) => {
-                                    e.preventDefault();
-                                    const n = e.dataTransfer.getData("text/plain");
-                                    if (n) setBreakCell(si, station, bi, n);
-                                  }}
-                                  onChange={(e) => setBreakCell(si, station, bi, e.target.value)}
+                                  type="time"
+                                  value={b.start}
+                                  className="w-24"
+                                  onChange={(e) => setBreakRow(si, station, bi, { start: e.target.value })}
                                 />
-                              </td>
-                            ))}
+                                <span className="text-xs text-slate-400">–</span>
+                                <Input
+                                  type="time"
+                                  value={b.end}
+                                  className="w-24"
+                                  onChange={(e) => setBreakRow(si, station, bi, { end: e.target.value })}
+                                />
+                              </div>
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <Input
+                                value={b.cover}
+                                placeholder="Name or drag a member here"
+                                className="max-w-56"
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  const n = e.dataTransfer.getData("text/plain");
+                                  if (n) setBreakRow(si, station, bi, { cover: n });
+                                }}
+                                onChange={(e) => setBreakRow(si, station, bi, { cover: e.target.value })}
+                              />
+                            </td>
+                            <td className="px-2 py-1.5 text-right">
+                              <button
+                                title="Remove break"
+                                onClick={() => removeBreakRow(si, station, bi)}
+                                className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-400">No breaks yet — click &quot;+ break&quot; to add a column.</p>
+                  <p className="text-sm text-slate-400">
+                    No breaks for {station} yet — click &quot;+ break&quot; to add one.
+                  </p>
                 )}
                 </div>
-                {/* Break pool — members of stations 1–3 (either shift) who are not covering anyone */}
+                {/* Break pool — members of stations 1–3 in the shift being edited
+                    who are not covering anyone (they cover each other) */}
                 {(() => {
                   const stationSet = new Set(BREAK_STATIONS);
                   const stationMembers = new Set(
-                    tactic.shifts.flat().filter((s) => stationSet.has(s.station)).flatMap((s) => s.photographers)
+                    (tactic.shifts[si] || []).filter((s) => stationSet.has(s.station)).flatMap((s) => s.photographers)
                   );
                   const pool = event.photographers.filter((p) => {
                     const tag = p.acronym || p.name;
@@ -1194,7 +1228,9 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                   });
                   return pool.length > 0 ? (
                     <aside className="shrink-0 rounded-md border border-slate-200 p-1.5">
-                      <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">Stations 1–3</p>
+                      <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                        Stations 1–3{tactic.shifts.length > 1 ? ` — Shift ${si + 1}` : ""}
+                      </p>
                       <div className="flex flex-wrap gap-1">
                         {pool.map((p) => {
                           const tag = p.acronym || p.name;
