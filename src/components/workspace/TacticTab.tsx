@@ -181,6 +181,20 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
   }
 
+  // Clone another day's full tactic (rows, call time, day note) into the
+  // active day — rows get fresh ids; publish state of the target day is kept.
+  function cloneDay(fromDate: string) {
+    const src = days.find((d) => d.date === fromDate);
+    if (!src) return;
+    setDays((ds) =>
+      ds.map((d) =>
+        d.date === activeDate
+          ? { ...d, rows: src.rows.map((r) => ({ ...r, id: uid() })), callTime: src.callTime, note: src.note }
+          : d
+      )
+    );
+  }
+
   function addRow(spot = "") {
     setRows((rs) => [...rs, newRow(spot)]);
   }
@@ -290,6 +304,23 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                   className="h-9 w-28 text-xs"
                 />
               </div>
+              {days.length > 1 && (
+                <Select
+                  value=""
+                  onChange={(e) => { if (e.target.value) cloneDay(e.target.value); }}
+                  className="h-9 w-40 text-xs"
+                  title="Clone another day's tactic into this day"
+                >
+                  <option value="">Copy day from…</option>
+                  {days
+                    .filter((d) => d.date !== activeDate)
+                    .map((d) => (
+                      <option key={d.date} value={d.date}>
+                        {d.date ? fmtDate(d.date) : "Unscheduled"}
+                      </option>
+                    ))}
+                </Select>
+              )}
             </div>
           )}
 
