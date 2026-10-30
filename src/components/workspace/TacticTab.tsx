@@ -174,6 +174,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
   };
   // rows whose spot cell shows a free-form input instead of the position dropdown
   const [customLinkRows, setCustomLinkRows] = useState<Set<string>>(new Set());
+  const [customLensRows, setCustomLensRows] = useState<Set<string>>(new Set());
   const [openColorRow, setOpenColorRow] = useState<string | null>(null);
 
   function update(id: string, key: keyof TacticRow, value: string) {
@@ -286,7 +287,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                   type="time"
                   value={days.find((d) => d.date === activeDate)?.callTime || ""}
                   onChange={(e) => setDayField("callTime", e.target.value)}
-                  className="h-7 w-28 text-xs"
+                  className="h-9 w-28 text-xs"
                 />
               </div>
             </div>
@@ -408,7 +409,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                               value={r.spot}
                               onChange={(e) => update(r.id, "spot", e.target.value)}
                               placeholder="e.g. Station 3"
-                              className="h-8 w-44 text-xs font-semibold"
+                              className="h-9 w-44 text-xs font-semibold"
                             />
                           ) : (() => {
                             const withCoords = event.positions.filter(
@@ -446,7 +447,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                                       update(r.id, "mapLink", spotMapUrl(pos.lat!, pos.lng!));
                                     }
                                   }}
-                                  className="h-8 w-44 text-xs font-semibold"
+                                  className="h-9 w-44 text-xs font-semibold"
                                 >
                                   <option value="">Pick a spot…</option>
                                   {withCoords.map((p) => (
@@ -462,7 +463,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                                     value={r.spot}
                                     onChange={(e) => update(r.id, "spot", e.target.value)}
                                     placeholder="Spot name"
-                                    className="h-7 w-44 text-xs"
+                                    className="h-9 w-44 text-xs"
                                   />
                                 )}
                               </div>
@@ -473,7 +474,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                           <Select
                             value={r.photographer}
                             onChange={(e) => update(r.id, "photographer", e.target.value)}
-                            className="h-8 w-32 text-xs"
+                            className="h-9 w-32 text-xs"
                           >
                             <option value="">— unassigned —</option>
                             {event.photographers.map((p) => (
@@ -547,16 +548,40 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                           </td>
                         )}
                         <td className="px-3 py-2">
-                          <Select
-                            value={r.lens}
-                            onChange={(e) => update(r.id, "lens", e.target.value)}
-                            className="h-8 w-32 text-xs"
-                          >
-                            <option value="">—</option>
-                            {LENS_OPTIONS.map((l) => (
-                              <option key={l} value={l}>{l}</option>
-                            ))}
-                          </Select>
+                          {(() => {
+                            const custom = customLensRows.has(r.id) || (!!r.lens && !LENS_OPTIONS.includes(r.lens));
+                            return (
+                              <div className="space-y-1">
+                                <Select
+                                  value={custom ? "__custom" : r.lens}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    if (v === "__custom") {
+                                      setCustomLensRows((s) => new Set(s).add(r.id));
+                                      return;
+                                    }
+                                    setCustomLensRows((s) => { const n = new Set(s); n.delete(r.id); return n; });
+                                    update(r.id, "lens", v);
+                                  }}
+                                  className="h-9 w-32 text-xs"
+                                >
+                                  <option value="">—</option>
+                                  {LENS_OPTIONS.map((l) => (
+                                    <option key={l} value={l}>{l}</option>
+                                  ))}
+                                  <option value="__custom">Other…</option>
+                                </Select>
+                                {custom && (
+                                  <Input
+                                    value={r.lens}
+                                    onChange={(e) => update(r.id, "lens", e.target.value)}
+                                    placeholder="e.g. 100-400, 35mm…"
+                                    className="h-9 w-32 text-xs"
+                                  />
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         {!isFitnessIndoor && (
                           <td className="px-3 py-2">
@@ -564,7 +589,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                               type="time"
                               value={to24(r.arrival)}
                               onChange={(e) => update(r.id, "arrival", from24(e.target.value))}
-                              className="h-8 w-28 px-2 text-xs"
+                              className="h-9 w-28 px-2 text-xs"
                             />
                           </td>
                         )}
@@ -573,7 +598,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                             value={r.note}
                             onChange={(e) => update(r.id, "note", e.target.value)}
                             placeholder="Setup LS if available…"
-                            className="h-8 w-52 text-xs"
+                            className="h-9 w-52 text-xs"
                           />
                         </td>
                         <td className="px-2 py-2">
