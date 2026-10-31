@@ -177,14 +177,6 @@ export interface ChecklistGroup {
   items: ChecklistItem[];
 }
 
-/** KW Group daily ops checklist — one per event date, status copied as text */
-export interface KwDayChecklist {
-  date: string; // "YYYY-MM-DD" — "" for undated/single-day events
-  eventId: string; // KW system event id
-  laptopId: string;
-  checks: { label: string; done: boolean }[];
-}
-
 // ── HYROX tactic ────────────────────────────────────────────────────────────
 export interface HyroxBreakRange {
   start: string; // "HH:MM"
@@ -291,7 +283,6 @@ export interface EventDTO {
   course: Course | null;
   documents: EventDoc[];
   checklist: ChecklistGroup[];
-  kwChecklist: KwDayChecklist[];
   requests: EventRequest[];
   notes: string;
   createdAt: string;
