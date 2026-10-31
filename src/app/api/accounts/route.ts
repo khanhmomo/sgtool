@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     const base =
       process.env.AUTH_URL ||
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
-      `${req.headers.get("x-forwarded-proto") || "http"}://${req.headers.get("host") || "sgtool.vercel.app"}`;
+      `${req.headers.get("x-forwarded-proto") || "http"}://${req.headers.get("host") || "sgtool.ktprod.com"}`;
     await sendWelcomeEmail({
       name,
       acronym: acronym.toUpperCase(),
