@@ -845,7 +845,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         )}
 
         <footer className="pt-6 text-center text-[10px] uppercase tracking-widest text-slate-400">
-          Sportograf TL Tool · One event. One source of truth.
+          Sportograf TL Tool · Powered by KTPROD Technology
         </footer>
       </main>
 
