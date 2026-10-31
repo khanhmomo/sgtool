@@ -145,7 +145,15 @@ export function Lightbox({
 }) {
   const [zoom, setZoom] = useState(1);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
   const file = files[index];
+
+  // keep the active thumbnail centered in the strip on any navigation
+  useEffect(() => {
+    stripRef.current
+      ?.querySelector(`[data-thumb="${index}"]`)
+      ?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [index]);
 
   const prev = useCallback(
     () => { onNavigate((index - 1 + files.length) % files.length); setZoom(1); },
@@ -229,6 +237,32 @@ export function Lightbox({
           </>
         )}
       </div>
+      {/* thumbnail strip — synced to the active image, click to jump */}
+      {files.length > 1 && (
+        <div
+          ref={stripRef}
+          className="flex shrink-0 items-center gap-2 overflow-x-auto px-4 pb-3 pt-1"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {files.map((f, i) => (
+            <button
+              key={f.id || i}
+              data-thumb={i}
+              onClick={() => {
+                onNavigate(i);
+                setZoom(1);
+              }}
+              className={cn(
+                "h-14 shrink-0 overflow-hidden rounded border-2 transition-opacity",
+                i === index ? "border-white" : "border-transparent opacity-60 hover:opacity-100"
+              )}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={f.url} alt="" loading="lazy" className="h-full w-auto object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
