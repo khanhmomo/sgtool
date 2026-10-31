@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, CheckSquare, Download, Plus, Trash2, X } from "lucide-react";
+import { BookOpen, CheckSquare, Copy, Download, Plus, Trash2, X } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input } from "@/components/ui";
-import { cn, uid } from "@/lib/utils";
-import type { ChecklistGroup, TemplateDTO } from "@/types";
+import { cn, dateRangeYmd, fmtDate, uid } from "@/lib/utils";
+import type { ChecklistGroup, KwDayChecklist, TemplateDTO } from "@/types";
 import { parseChecklist } from "@/lib/checklist";
 import type { TabProps } from "./EventWorkspace";
+
+/** Fixed KW checklist items — order is the copy-out order */
+const KW_ITEMS = ["Best of", "GPX/Spotinfo", "Picture count", "InfoFile", "Resize", "Upload"];
 
 export default function ChecklistTab({ event, patch }: TabProps) {
   const [groups, setGroups] = useState<ChecklistGroup[]>(event.checklist);
@@ -14,6 +17,62 @@ export default function ChecklistTab({ event, patch }: TabProps) {
   const [newGroup, setNewGroup] = useState("");
   const [importOpen, setImportOpen] = useState(false);
   const [templates, setTemplates] = useState<TemplateDTO[] | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  // ── KW Group Checklist — one block per event date ─────────────────────────
+  const [kwDays, setKwDays] = useState<KwDayChecklist[]>(() => {
+    const dates = dateRangeYmd(event.date, event.endDate || "");
+    const list = dates.length ? dates : [event.date || ""];
+    const saved = event.kwChecklist || [];
+    return list.map((date) => {
+      const s = saved.find((d) => d.date === date);
+      return {
+        date,
+        eventId: s?.eventId || "",
+        laptopId: s?.laptopId || "",
+        checks: KW_ITEMS.map((label) => ({
+          label,
+          done: !!s?.checks?.find((c) => c.label === label)?.done,
+        })).concat((s?.checks || []).filter((c) => !KW_ITEMS.includes(c.label))),
+      };
+    });
+  });
+  const [kwDate, setKwDate] = useState(() => kwDays[0]?.date ?? "");
+  const kwDay = kwDays.find((d) => d.date === kwDate) ?? kwDays[0];
+
+  const saveKw = (next: KwDayChecklist[]) => {
+    setKwDays(next);
+    patch({ kwChecklist: next.filter((d) => d.eventId || d.laptopId || d.checks.some((c) => c.done)) });
+  };
+
+  const setKwField = (date: string, key: "eventId" | "laptopId", value: string) =>
+    setKwDays((ds) => ds.map((d) => (d.date === date ? { ...d, [key]: value } : d)));
+
+  const toggleKw = (date: string, label: string) =>
+    saveKw(
+      kwDays.map((d) =>
+        d.date === date
+          ? { ...d, checks: d.checks.map((c) => (c.label === label ? { ...c, done: !c.done } : c)) }
+          : d
+      )
+    );
+
+  const kwStatusText = (d: KwDayChecklist) =>
+    [
+      `Event ${d.eventId}`,
+      `Laptop ${d.laptopId}`,
+      ...d.checks.map((c) => `${c.label} ${c.done ? "✅" : "⚙️"}`),
+    ].join("\n");
+
+  const copyStatus = async (d: KwDayChecklist) => {
+    try {
+      await navigator.clipboard.writeText(kwStatusText(d));
+      setCopied(d.date);
+      setTimeout(() => setCopied((c) => (c === d.date ? null : c)), 1500);
+    } catch {
+      // clipboard unavailable (non-secure context) — no-op
+    }
+  };
 
   useEffect(() => {
     if (!importOpen || templates !== null) return;
@@ -217,6 +276,94 @@ export default function ChecklistTab({ event, patch }: TabProps) {
           </Button>
         </div>
       </Card>
+
+      {/* ── KW Group Checklist — day picker + one block per active date ────── */}
+      {kwDay && (
+        <div className="pt-3">
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+            KW Group Checklist
+          </p>
+          {kwDays.length > 1 && (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              {kwDays.map((d) => (
+                <button
+                  key={d.date || "day"}
+                  onClick={() => setKwDate(d.date)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    d.date === kwDay.date
+                      ? "bg-slate-900 text-white"
+                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                  }`}
+                >
+                  {d.date ? fmtDate(d.date) : "Unscheduled"}
+                </button>
+              ))}
+            </div>
+          )}
+          <Card>
+            <CardHeader
+              title={kwDay.date ? fmtDate(kwDay.date) : "Event day"}
+              icon={<CheckSquare size={15} className="text-blue-600" />}
+            />
+            <div className="space-y-2.5 px-4 pb-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <label className="flex items-center gap-2">
+                  <span className="w-12 text-xs font-semibold text-slate-500">Event</span>
+                  <Input
+                    value={kwDay.eventId}
+                    onChange={(e) => setKwField(kwDay.date, "eventId", e.target.value)}
+                    onBlur={() => saveKw(kwDays)}
+                    placeholder="Event ID"
+                    className="h-9 w-40 text-xs"
+                  />
+                </label>
+                <label className="flex items-center gap-2">
+                  <span className="w-12 text-xs font-semibold text-slate-500">Laptop</span>
+                  <Input
+                    value={kwDay.laptopId}
+                    onChange={(e) => setKwField(kwDay.date, "laptopId", e.target.value)}
+                    onBlur={() => saveKw(kwDays)}
+                    placeholder="Laptop ID"
+                    className="h-9 w-40 text-xs"
+                  />
+                </label>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {kwDay.checks.map((c) => (
+                  <div key={c.label} className="flex items-center gap-3 py-1.5">
+                    <button
+                      onClick={() => toggleKw(kwDay.date, c.label)}
+                      className={cn(
+                        "flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors",
+                        c.done
+                          ? "border-emerald-600 bg-emerald-600 text-white"
+                          : "border-slate-300 bg-white hover:border-blue-400"
+                      )}
+                    >
+                      {c.done && (
+                        <svg viewBox="0 0 12 12" className="h-3 w-3 fill-none stroke-current stroke-2">
+                          <path d="M2 6.5 5 9.5 10 2.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </button>
+                    <span
+                      className={cn(
+                        "flex-1 text-sm",
+                        c.done ? "text-slate-400 line-through" : "text-slate-800"
+                      )}
+                    >
+                      {c.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <Button size="sm" variant="outline" onClick={() => copyStatus(kwDay)}>
+                <Copy size={13} /> {copied === kwDay.date ? "Copied!" : "Copy Status"}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

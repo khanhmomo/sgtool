@@ -8,7 +8,7 @@ import { serializeEvent } from "@/lib/serialize";
 const PATCHABLE = new Set([
   "name", "type", "date", "endDate", "location", "country", "organizer", "website",
   "status", "venue", "hotels", "transport", "schedule", "contacts", "photographers",
-  "positions", "preSpots", "tactic", "tacticPublished", "tacticDays", "course", "documents", "checklist", "notes",
+  "positions", "preSpots", "tactic", "tacticPublished", "tacticDays", "course", "documents", "checklist", "kwChecklist", "notes",
   "teamLeaders",
   "hyrox", "briefing", "requests",
 ]);
