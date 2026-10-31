@@ -266,7 +266,7 @@ export default function CourseMap({
           setSatellite(next);
           tileRef.current?.setUrl(`https://mt{s}.google.com/vt/lyrs=${next ? "y" : "m"}&x={x}&y={y}&z={z}`);
         }}
-        className="absolute right-2 top-2 z-[500] rounded-md bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-md ring-1 ring-slate-300 hover:bg-white"
+        className="absolute right-2 top-2 z-[400] rounded-md bg-white/95 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-md ring-1 ring-slate-300 hover:bg-white"
       >
         {satellite ? "Street" : "Satellite"}
       </button>
