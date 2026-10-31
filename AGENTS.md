@@ -21,3 +21,17 @@ Event dates and times belong to the **event**, not the person viewing the page. 
 - **Times** (`HH:MM`, schedule times, callTime) are literal strings — render as-is, never pass through `new Date()`.
 - The only intentional timezone conversion is rendering *real instants* (createdAt/updatedAt) in local time, and the "camera check" clock which explicitly formats in the **event's** timezone (`tz-lookup` on event coords).
 - Server components render at server TZ — the same rules apply; noon-parse keeps hydration output identical.
+
+## Mobile-responsiveness rule
+
+Mobile UI changes must not alter desktop behavior — add mobile handling via
+`sm:`/`md:`/`-only` breakpoint classes (e.g. `hidden md:block` vs `md:hidden`
+pairs, `flex-col md:flex-row`), never by modifying existing desktop classes or
+shared component defaults that desktop relies on.
+
+## Public photographer page
+
+The mobile UI of `/e/[slug]` (`src/components/PublicEvent.tsx`, including the
+embedded `HyroxPublicView` in `HyroxTactic.tsx`) is final — do not change its
+markup or layout. Mobile/responsive work targets the team-leader editor
+(`(app)` routes) only.

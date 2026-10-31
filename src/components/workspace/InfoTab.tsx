@@ -16,12 +16,12 @@ import {
   Input,
   Textarea,
 } from "@/components/ui";
-import { uid } from "@/lib/utils";
+import { cn, uid } from "@/lib/utils";
 import type { HotelInfo, Photographer, RoomAssignment, VenueInfo } from "@/types";
 import type { TabProps } from "./EventWorkspace";
 import { useAutosave } from "./autosave";
 
-function Chip({ acronym, onDragStart }: { acronym: string; onDragStart: (a: string) => void }) {
+function Chip({ acronym, onDragStart, picked, onTap }: { acronym: string; onDragStart: (a: string) => void; picked?: boolean; onTap?: (a: string) => void }) {
   return (
     <span
       draggable
@@ -30,7 +30,11 @@ function Chip({ acronym, onDragStart }: { acronym: string; onDragStart: (a: stri
         e.dataTransfer.effectAllowed = "move";
         onDragStart(acronym);
       }}
-      className="inline-flex cursor-grab items-center rounded bg-slate-900 px-2 py-1 text-[11px] font-bold text-white active:cursor-grabbing"
+      onClick={(e) => { e.stopPropagation(); onTap?.(acronym); }}
+      className={cn(
+        "inline-flex cursor-grab items-center rounded bg-slate-900 px-2 py-1 text-[11px] font-bold text-white active:cursor-grabbing",
+        picked && "ring-2 ring-blue-400 ring-offset-1"
+      )}
     >
       {acronym}
     </span>
@@ -51,6 +55,14 @@ function RoomBoard({
 }) {
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<string | null>(null); // room id or "pool"
+  const [picked, setPicked] = useState<string | null>(null); // tap-to-assign (touch devices can't drag)
+
+  const tapPick = (a: string) => setPicked((p) => (p === a ? null : a));
+  const tapDrop = (roomId: string | null) => {
+    if (!picked) return;
+    moveTo(picked, roomId);
+    setPicked(null);
+  };
 
   const assigned = new Set(rooms.flatMap((r) => r.members));
   const pool = photographers.filter(
@@ -98,16 +110,22 @@ function RoomBoard({
       {/* Unassigned pool */}
       <div
         {...dropProps(null)}
+        onClick={() => tapDrop(null)}
         className={`mb-2 flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-dashed p-2 transition-colors ${
           over === "pool" ? "border-blue-400 bg-blue-50" : "border-slate-300 bg-slate-50"
-        }`}
+        } ${picked ? "ring-1 ring-blue-300" : ""}`}
       >
         <span className="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Unassigned</span>
         {pool.map((p) => (
-          <Chip key={p.id} acronym={p.acronym} onDragStart={setDragging} />
+          <Chip key={p.id} acronym={p.acronym} onDragStart={setDragging} picked={picked === p.acronym} onTap={tapPick} />
         ))}
         {pool.length === 0 && <span className="text-xs text-slate-400">Everyone has a room</span>}
       </div>
+      {picked && (
+        <p className="mb-2 text-[11px] font-medium text-blue-600">
+          {picked} picked — tap a room to assign (tap the chip again to cancel)
+        </p>
+      )}
 
       {/* Rooms */}
       <div className="grid gap-2 sm:grid-cols-2">
@@ -136,12 +154,17 @@ function RoomBoard({
                 <Trash2 size={12} />
               </button>
             </div>
-            <div className="flex min-h-8 flex-wrap gap-1.5">
+            <div
+              className="flex min-h-8 flex-wrap gap-1.5"
+              onClick={() => tapDrop(r.id)}
+            >
               {r.members.map((m) => (
-                <Chip key={m} acronym={m} onDragStart={setDragging} />
+                <Chip key={m} acronym={m} onDragStart={setDragging} picked={picked === m} onTap={tapPick} />
               ))}
               {r.members.length === 0 && (
-                <span className="self-center text-[11px] text-slate-400">Drop people here</span>
+                <span className="self-center text-[11px] text-slate-400">
+                  {picked ? `Tap to assign ${picked}` : "Drop people here"}
+                </span>
               )}
             </div>
           </div>

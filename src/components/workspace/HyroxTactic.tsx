@@ -58,6 +58,7 @@ function NameCell({
   chipClass,
   droppable = true,
   onDragChip,
+  tap,
 }: {
   values: string[];
   onDropName: (name: string) => void;
@@ -66,8 +67,18 @@ function NameCell({
   droppable?: boolean;
   /** Called when a chip inside this cell starts being dragged (move, not copy) */
   onDragChip?: (name: string) => void;
+  /** Tap-to-assign plumbing — pick chips up / drop into this cell (touch UIs) */
+  tap?: {
+    src: { si: number; sti: number; key: "photographers" | "cover" | "ls" };
+    picked: { name: string; src: { si: number; sti: number; key: "photographers" | "cover" | "ls" } | null } | null;
+    pick: (name: string, src: { si: number; sti: number; key: "photographers" | "cover" | "ls" } | null) => void;
+    drop: () => void;
+  };
 }) {
   const [over, setOver] = useState(false);
+  const isPickedChip = (v: string) =>
+    !!tap?.picked && tap.picked.name === v &&
+    tap.picked.src?.si === tap.src.si && tap.picked.src?.sti === tap.src.sti && tap.picked.src?.key === tap.src.key;
   return (
     <div
       onDragOver={droppable ? (e) => {
@@ -81,9 +92,11 @@ function NameCell({
         const name = e.dataTransfer.getData("text/plain").trim();
         if (name) onDropName(name);
       } : undefined}
+      onClick={droppable && tap?.picked ? tap.drop : undefined}
       className={cn(
         "flex h-full min-h-7 w-full flex-wrap items-center gap-1 rounded px-1 py-0.5",
-        over && "bg-blue-50 ring-1 ring-blue-300"
+        over && "bg-blue-50 ring-1 ring-blue-300",
+        droppable && tap?.picked && "ring-1 ring-blue-200 cursor-pointer"
       )}
     >
       {values.map((v, i) => (
@@ -96,7 +109,8 @@ function NameCell({
             e.dataTransfer.effectAllowed = "move";
             onDragChip(v);
           } : undefined}
-          className={cn("group inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[11px] font-bold text-white", chipClass(v), onDragChip && "cursor-grab active:cursor-grabbing")}
+          onClick={tap ? (e) => { e.stopPropagation(); tap.pick(v, tap.src); } : undefined}
+          className={cn("group inline-flex h-5 items-center gap-0.5 rounded px-1.5 text-[11px] font-bold text-white", chipClass(v), (onDragChip || tap) && "cursor-grab active:cursor-grabbing", isPickedChip(v) && "ring-2 ring-white/80")}
         >
           {v}
           <button
@@ -108,7 +122,9 @@ function NameCell({
           </button>
         </span>
       ))}
-      {values.length === 0 && droppable && <span className="text-[11px] text-slate-300">drop here</span>}
+      {values.length === 0 && droppable && (
+        <span className="text-[11px] text-slate-300">{tap?.picked ? "tap to assign" : "drop here"}</span>
+      )}
     </div>
   );
 }
@@ -665,6 +681,21 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   /** Source cell of a chip currently being dragged — null when dragging from the Team pool */
   const dragSrcRef = useRef<{ si: number; sti: number; key: "photographers" | "cover" | "ls" } | null>(null);
 
+  // Tap-to-assign (touch devices can't drag): tap a chip to pick it up,
+  // tap a cell to drop it. Reuses dragSrcRef + dropName for move/dedupe.
+  type CellSrc = { si: number; sti: number; key: "photographers" | "cover" | "ls" };
+  const [picked, setPicked] = useState<{ name: string; src: CellSrc | null } | null>(null);
+  const sameSrc = (a: CellSrc | null, b: CellSrc | null) =>
+    a?.si === b?.si && a?.sti === b?.sti && a?.key === b?.key;
+  const tapPick = (name: string, src: CellSrc | null) =>
+    setPicked((p) => (p && p.name === name && sameSrc(p.src, src) ? null : { name, src }));
+  const tapDrop = (si: number, sti: number, key: CellSrc["key"]) => {
+    if (!picked) return;
+    dragSrcRef.current = picked.src;
+    dropName(si, sti, key, picked.name);
+    setPicked(null);
+  };
+
   /**
    * Drop a name into a cell. If it was dragged out of another cell, it is MOVED —
    * removed from the source and added to the target in a single update so dedupe
@@ -812,7 +843,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
           </button>
         </div>
       )}
-      <div className="flex items-start gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start">
       <div key={activeDate} className="min-w-0 flex-1 space-y-4">
       {tactic.shifts.map((stations, si) => (
         <Card key={si}>
@@ -882,6 +913,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                           onDropName={(n) => dropName(si, sti, "photographers", n)}
                           onRemove={(n) => removeName(si, sti, "photographers", n)}
                           onDragChip={() => { dragSrcRef.current = { si, sti, key: "photographers" }; }}
+                          tap={{ src: { si, sti, key: "photographers" }, picked, pick: tapPick, drop: () => tapDrop(si, sti, "photographers") }}
                           chipClass={() => "bg-amber-400 !text-slate-900"}
                         />
                       ) : st.station === "Finish" ? (
@@ -893,6 +925,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                               onDropName={(n) => dropName(si, sti, "photographers", n)}
                               onRemove={(n) => removeName(si, sti, "photographers", n)}
                               onDragChip={() => { dragSrcRef.current = { si, sti, key: "photographers" }; }}
+                          tap={{ src: { si, sti, key: "photographers" }, picked, pick: tapPick, drop: () => tapDrop(si, sti, "photographers") }}
                               chipClass={(v) => (teamTags.has(v) ? "bg-green-600" : "bg-amber-400 !text-slate-900")}
                             />
                           </div>
@@ -903,6 +936,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                               onDropName={(n) => dropName(si, sti, "ls", n)}
                               onRemove={(n) => removeName(si, sti, "ls", n)}
                               onDragChip={() => { dragSrcRef.current = { si, sti, key: "ls" }; }}
+                              tap={{ src: { si, sti, key: "ls" }, picked, pick: tapPick, drop: () => tapDrop(si, sti, "ls") }}
                               chipClass={() => "bg-amber-400 !text-slate-900"}
                             />
                           </div>
@@ -914,6 +948,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                             onDropName={(n) => dropName(si, sti, "photographers", n)}
                             onRemove={(n) => removeName(si, sti, "photographers", n)}
                             onDragChip={() => { dragSrcRef.current = { si, sti, key: "photographers" }; }}
+                          tap={{ src: { si, sti, key: "photographers" }, picked, pick: tapPick, drop: () => tapDrop(si, sti, "photographers") }}
                             chipClass={(v) => (teamTags.has(v) ? "bg-green-600" : "bg-amber-400 !text-slate-900")}
                           />
                         </div>
@@ -985,6 +1020,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                           onDropName={(n) => dropName(si, sti, "cover", n)}
                           onRemove={(n) => removeName(si, sti, "cover", n)}
                           onDragChip={() => { dragSrcRef.current = { si, sti, key: "cover" }; }}
+                          tap={{ src: { si, sti, key: "cover" }, picked, pick: tapPick, drop: () => tapDrop(si, sti, "cover") }}
                           chipClass={(v) => (teamTags.has(v) ? "bg-blue-600" : "bg-amber-400 !text-slate-900")}
                         />
                       )}
@@ -1181,11 +1217,19 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                                 />
                               </div>
                             </td>
-                            <td className="px-3 py-1.5">
+                            <td
+                              className="px-3 py-1.5"
+                              onClick={() => {
+                                if (picked?.name) {
+                                  setBreakRow(si, station, bi, { cover: picked.name });
+                                  setPicked(null);
+                                }
+                              }}
+                            >
                               <Input
                                 value={b.cover}
-                                placeholder="Name or drag a member here"
-                                className="max-w-56"
+                                placeholder="Name or tap a member here"
+                                className={cn("max-w-56", picked?.name && "ring-1 ring-blue-300")}
                                 onDragOver={(e) => e.preventDefault()}
                                 onDrop={(e) => {
                                   e.preventDefault();
@@ -1239,7 +1283,11 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                               key={p.id}
                               draggable
                               onDragStart={(e) => e.dataTransfer.setData("text/plain", tag)}
-                              className="cursor-grab truncate rounded bg-green-600 px-1.5 py-0.5 text-left text-[10px] font-bold text-white active:cursor-grabbing"
+                              onClick={() => tapPick(tag, null)}
+                              className={cn(
+                                "cursor-grab truncate rounded bg-green-600 px-1.5 py-0.5 text-left text-[10px] font-bold text-white active:cursor-grabbing",
+                                picked?.name === tag && !picked.src && "ring-2 ring-blue-300"
+                              )}
                             >
                               {tag}
                               {p.name && p.name !== tag && (
@@ -1261,10 +1309,12 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
       </div>
       {/* Photographer pool — sticky right column, drag onto any cell */}
       {event.photographers.length > 0 && (
-        <aside className="sticky top-20 w-60 shrink-0 self-start space-y-2">
+        <aside className="w-full shrink-0 space-y-2 md:sticky md:top-20 md:w-60 md:self-start">
         <div className="rounded-lg border border-slate-200 bg-white p-2">
-          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Team</p>
-          <div className="grid grid-cols-2 gap-1 overflow-y-auto" style={{ maxHeight: "calc(100vh - 140px)" }}>
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            Team{picked?.name ? ` — ${picked.name} picked` : ""}
+          </p>
+          <div className="grid grid-cols-3 gap-1 overflow-y-auto md:grid-cols-2" style={{ maxHeight: "calc(100vh - 140px)" }}>
             {event.photographers.map((p) => {
               const tag = p.acronym || p.name;
               const covering = coveringSet.has(tag);
@@ -1274,10 +1324,12 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                   key={p.id}
                   draggable
                   onDragStart={(e) => e.dataTransfer.setData("text/plain", tag)}
-                  title={covering ? "Covering (jumper)" : assigned ? "Assigned to a station" : "Drag to a station"}
+                  onClick={() => tapPick(tag, null)}
+                  title={covering ? "Covering (jumper)" : assigned ? "Assigned to a station" : "Drag or tap to assign"}
                   className={cn(
                     "cursor-grab truncate rounded px-2 py-1 text-left text-[11px] font-bold text-white active:cursor-grabbing",
-                    covering ? "bg-blue-600" : assigned ? "bg-green-600" : "bg-slate-400"
+                    covering ? "bg-blue-600" : assigned ? "bg-green-600" : "bg-slate-400",
+                    picked?.name === tag && !picked.src && "ring-2 ring-blue-300"
                   )}
                 >
                   {tag}
