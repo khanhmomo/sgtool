@@ -138,6 +138,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
         rows: match?.rows ?? (i === 0 && !saved.length ? event.tactic || [] : []),
         callTime: match?.callTime || "",
         note: match?.note || "",
+        published: !!match?.published,
       };
     });
   });
