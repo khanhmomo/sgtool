@@ -16,6 +16,7 @@ import {
   LogOut,
   Menu,
   X,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ const NAV = [
   { href: "/events", label: "Events", icon: CalendarDays },
   { href: "/bookshelf", label: "Bookshelf", icon: Library },
   { href: "/files", label: "Files", icon: FolderOpen },
+  { href: "/tutorial", label: "Tutorial", icon: BookOpen },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
