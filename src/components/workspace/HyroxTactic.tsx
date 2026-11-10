@@ -743,8 +743,10 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   for (const d of days) {
     for (const shift of d.tactic?.shifts || []) {
       for (const st of shift) {
-        for (const n of [...st.photographers, ...st.cover]) {
-          if (!n) continue;
+        if (isExternal(st.station)) continue; // LS-crew stations never alert
+        for (const n of st.photographers) {
+          // Only actual station assignments alert — LS entries and jumper cover don't
+          if (!n || !teamTags.has(n)) continue;
           const key = `${n}@@${st.station}`;
           const s = stationDates.get(key) || new Set<string>();
           s.add(d.date);
