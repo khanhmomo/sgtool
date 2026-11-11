@@ -27,6 +27,13 @@ export const HYROX_STATIONS = [
     Tolerant match: saved station names may differ in case/spacing/apostrophes */
 const isExternal = (s: string) => /farmers?['\u2019]?\s*carry/i.test(s) || /ls\s*arch/i.test(s);
 
+/** Numbered race stations are HYROX_STATIONS[0..7] (SkiErg=1 … Wall Ball=8);
+    later entries (Finish, Hero Wall, LS Arch) are unnumbered */
+const stationLabel = (name: string) => {
+  const i = HYROX_STATIONS.indexOf(name);
+  return i >= 0 && i < 8 ? `${i + 1}. ${name}` : name;
+};
+
 /** Row background per station (public view) — plain white for a clean read */
 const STATION_PASTEL: Record<string, string> = Object.fromEntries(
   HYROX_STATIONS.map((s) => [s, "bg-white"])
@@ -236,6 +243,8 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
   const shifts = hyrox.shifts || [];
   const groups = hyrox.switchGroups || [];
   const breaks = normBreakTables(hyrox.breaks);
+  // Per-shift station filter — key = shift index, value = station name ("ALL" = no filter)
+  const [stationFilter, setStationFilter] = useState<Record<number, string>>({});
   // Break tables are indexed by shift — only show those whose shift still exists
   const breakHas = (si: number) =>
     si < shifts.length && BREAK_STATIONS.some((s) => (breaks[si]?.rows?.[s] || []).some(nonEmptyBreak));
@@ -256,13 +265,38 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
           <Markdown text={dayNote} />
         </div>
       )}
-      {shifts.map((stations, si) => (
+      {shifts.map((stations, si) => {
+        const active = stationFilter[si] || "ALL";
+        const visible = active === "ALL" ? stations : stations.filter((s) => s.station === active);
+        return (
         <div key={si}>
-          {shifts.length > 1 && (
-            <p className="mb-1.5 text-sm font-black uppercase tracking-wider text-slate-900">
-              Shift {si + 1}
-            </p>
-          )}
+          <div className="mb-1.5 flex items-center justify-between gap-2">
+            {shifts.length > 1 && (
+              <p className="text-sm font-black uppercase tracking-wider text-slate-900">
+                Shift {si + 1}
+              </p>
+            )}
+          </div>
+          {/* Station filter — compact dropdown per shift */}
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Station
+            </span>
+            <select
+              value={active}
+              onChange={(e) =>
+                setStationFilter((f) => ({ ...f, [si]: e.target.value }))
+              }
+              className="h-8 flex-1 rounded-md border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 outline-none focus:border-slate-400 sm:h-7 sm:max-w-56"
+            >
+              <option value="ALL">All stations</option>
+              {stations.map((s) => (
+                <option key={s.station} value={s.station}>
+                  {stationLabel(s.station)}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="hidden overflow-x-auto rounded-md border border-slate-900 sm:block">
             <table className="w-full border-collapse text-left text-xs">
               <thead>
@@ -274,13 +308,13 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                 </tr>
               </thead>
               <tbody>
-                {stations.map((st) => (
+                {visible.map((st) => (
                   <tr
                     key={st.station}
                     className={cn("align-top text-slate-900", STATION_PASTEL[st.station] || "bg-slate-50")}
                   >
                     <td className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">
-                      {st.station}
+                      {stationLabel(st.station)}
                       {st.note && <div className="mt-0.5 whitespace-normal text-[10px] font-normal text-slate-600"><Markdown text={st.note} /></div>}
                     </td>
                     <td className="border border-slate-900 px-3 py-2">
@@ -316,55 +350,113 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
               </tbody>
             </table>
           </div>
-          {/* Mobile: stacked station cards */}
-          <div className="space-y-1.5 sm:hidden">
-            {stations.map((st) => (
-              <div key={st.station} className={cn("rounded-md border border-slate-900 p-2.5 text-slate-900", STATION_PASTEL[st.station] || "bg-slate-50")}>
-                <p className="mb-1 text-xs font-black uppercase tracking-wide">{st.station}</p>
-                {st.note && <div className="mb-1 text-[10px] font-normal text-slate-600"><Markdown text={st.note} /></div>}
-                <div className="grid grid-cols-[1fr_1fr_auto] gap-x-2">
-                  {/* Col 1: photographers / LS */}
-                  <div className="flex flex-wrap items-start gap-1">
-                    {st.photographers.length || (st.ls || []).length
-                      ? <>
-                          {st.photographers.map((p, i) => (
-                            <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", isExternal(st.station) ? "bg-amber-400 text-slate-900" : chip(p, "bg-green-600"))}>
-                              {isExternal(st.station) || !teamSet.has(p) ? `${p} LS` : p}
-                            </span>
-                          ))}
-                          {(st.ls || []).map((p, i) => (
-                            <span key={`ls-${i}`} className="inline-flex h-5 items-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-slate-900">{p} LS</span>
-                          ))}
-                        </>
-                      : <span className="text-[11px] opacity-40">—</span>}
+          {/* Mobile: labeled-row station cards */}
+          <div className="space-y-2 sm:hidden">
+            {visible.map((st) => {
+              const hasPeople = st.photographers.length > 0 || (st.ls || []).length > 0;
+              const breakList = (st.breaks || []) as HyroxBreakRange[];
+              return (
+                <div
+                  key={st.station}
+                  className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                >
+                  {/* Station header */}
+                  <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2">
+                    <span className="rounded bg-[#FFED00] px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide text-slate-900">
+                      {stationLabel(st.station)}
+                    </span>
                   </div>
-                  {/* Col 2: cover — spans into col 3 when no breaks */}
-                  <div className="flex flex-wrap items-start gap-1">
-                    {st.cover.length > 0 && (
-                      <>
-                        <span className="text-[9px] font-bold uppercase tracking-wider opacity-60">Cover</span>
-                        {st.cover.map((c, i) => (
-                          <span key={i} className={cn("inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold", chip(c, "bg-blue-600"))}>{c}</span>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                  {/* Col 3: break times, one per line */}
-                  {(st.breaks || []).length > 0 && (
-                    <div className="flex flex-col items-end gap-0.5 border-l border-slate-900/20 pl-2 text-right">
-                      {(st.breaks as HyroxBreakRange[]).map((b, bi) => (
-                        <span key={bi} className="whitespace-nowrap text-[10px] font-bold opacity-80">
-                          {fmtT(b.start)}–{fmtT(b.end)}
-                        </span>
-                      ))}
+                  {st.note && (
+                    <div className="border-b border-slate-100 px-3 py-1.5 text-[11px] text-slate-600">
+                      <Markdown text={st.note} />
                     </div>
                   )}
+                  <div className="divide-y divide-slate-100">
+                    {/* Photo team row */}
+                    <div className="flex items-start gap-2.5 px-3 py-2">
+                      <span className="w-11 shrink-0 pt-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                        Photo
+                      </span>
+                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+                        {hasPeople ? (
+                          <>
+                            {st.photographers.map((p, i) => (
+                              <span
+                                key={i}
+                                className={cn(
+                                  "inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold",
+                                  isExternal(st.station) ? "bg-amber-400 text-slate-900" : chip(p, "bg-green-600")
+                                )}
+                              >
+                                {isExternal(st.station) || !teamSet.has(p) ? `${p} LS` : p}
+                              </span>
+                            ))}
+                            {(st.ls || []).map((p, i) => (
+                              <span
+                                key={`ls-${i}`}
+                                className="inline-flex h-5 items-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-slate-900"
+                              >
+                                {p} LS
+                              </span>
+                            ))}
+                          </>
+                        ) : (
+                          <span className="text-[11px] text-slate-300">—</span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Cover row — full width, chips wrap cleanly */}
+                    {st.cover.length > 0 && (
+                      <div className="flex items-start gap-2.5 px-3 py-2">
+                        <span className="w-11 shrink-0 pt-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                          Cover
+                        </span>
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+                          {st.cover.map((c, i) => (
+                            <span
+                              key={i}
+                              className={cn(
+                                "inline-flex h-5 items-center rounded px-1.5 text-[11px] font-bold",
+                                chip(c, "bg-blue-600")
+                              )}
+                            >
+                              {c}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* Break row — one line per break, aligned times */}
+                    {breakList.length > 0 && (
+                      <div className="flex items-start gap-2.5 px-3 py-2">
+                        <span className="w-11 shrink-0 pt-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                          Break
+                        </span>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          {breakList.map((b, bi) => (
+                            <div
+                              key={bi}
+                              className="flex items-baseline gap-1.5 text-[11px] font-bold text-slate-700"
+                            >
+                              <span className="w-3 text-center text-[9px] font-semibold text-slate-400">
+                                {bi + 1}
+                              </span>
+                              <span className="w-16 tabular-nums">{fmtT(b.start)}</span>
+                              <span className="w-3 text-center text-slate-300">→</span>
+                              <span className="tabular-nums">{fmtT(b.end)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
-      ))}
+        );
+      })}
 
       {groups.length > 0 && (
         <div>

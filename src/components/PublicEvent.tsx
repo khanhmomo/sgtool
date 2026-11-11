@@ -844,8 +844,15 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
           </Section>
         )}
 
-        <footer className="pt-6 text-center text-[10px] uppercase tracking-widest text-slate-400">
-          Sportograf TL Tool · Powered by KTPROD Technology
+        <footer className="pt-6 text-center">
+          <p className="text-[10px] uppercase tracking-widest text-slate-400">
+            Sportograf TL Tool · Powered by KTPROD Technology
+          </p>
+          <p className="mx-auto mt-1.5 max-w-xs text-[10px] leading-relaxed text-slate-400/80">
+            This tool is developed independently and is not a part of the official
+            Sportograf system. For anything related to Sportograf, please contact
+            the office.
+          </p>
         </footer>
       </main>
 
