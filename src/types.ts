@@ -124,10 +124,25 @@ export interface TacticRow {
   color: string; // row background color, hex e.g. "#fef3c7"
 }
 
+/** A named sub-table inside a date tactic — e.g. "Kids race" alongside the main race */
+export interface TacticCategory {
+  id: string;
+  name: string;
+  rows: TacticRow[];
+}
+
 /** One event day with its own spot-assignment tactic (multi-day events) */
 export interface TacticDay {
   date: string; // YYYY-MM-DD
+  /** End date — only used on named (category) tabs spanning multiple days */
+  endDate?: string; // YYYY-MM-DD
+  /** Custom tab name for race categories etc. (e.g. "100K") — overrides date display */
+  label?: string;
   rows: TacticRow[];
+  /** Display name for the main `rows` table (default "Race") — shown publicly */
+  mainName?: string;
+  /** Extra named spot tables (race categories) alongside the main `rows` table */
+  categories?: TacticCategory[];
   callTime?: string; // "HH:MM" — crew call time for this day
   note?: string; // general note for this day's tactic (markdown-lite)
   /** Only published days appear on the public photographer page */
@@ -279,6 +294,8 @@ export interface EventDTO {
   /** Only shown publicly when true — TLs draft before publishing */
   tacticPublished?: boolean;
   tacticDays: TacticDay[];
+  /** Once true, saved tacticDays are the tab list — no re-seeding from event dates */
+  tacticManaged?: boolean;
   hyrox: HyroxDayPlan[];
   course: Course | null;
   documents: EventDoc[];

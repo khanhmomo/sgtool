@@ -33,7 +33,7 @@ import type { ParsedCoords } from "@/lib/coords";
 import tzLookup from "tz-lookup";
 import Markdown from "@/components/Markdown";
 import { FileTypeBadge, Lightbox, PdfViewer } from "@/components/FileViewers";
-import type { EventDTO, FileDTO } from "@/types";
+import type { EventDTO, FileDTO, TacticRow } from "@/types";
 import { HyroxPublicView } from "@/components/workspace/HyroxTactic";
 
 const CourseMap = dynamic(() => import("@/components/CourseMap"), { ssr: false });
@@ -154,25 +154,27 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         ? event.tactic || []
         : [];
 
-  const sortedTactic = [...tacticRows]
-    .filter(
-      (r) =>
-        !tacticFilter ||
-        r.photographer
-          .split(",")
-          .map((s) => s.trim())
-          .includes(tacticFilter)
-    )
-    .sort((a, b) => {
-      if (tacticSort === "spot") return (a.spot || "").localeCompare(b.spot || "");
-      if (tacticSort === "photographer") {
-        const an = event.photographers.find((p) => p.acronym === a.photographer)?.name || a.photographer || "zzz";
-        const bn = event.photographers.find((p) => p.acronym === b.photographer)?.name || b.photographer || "zzz";
-        return an.localeCompare(bn);
-      }
-      if (tacticSort === "arrival") return timeToMin(a.arrival || "") - timeToMin(b.arrival || "");
-      return 0;
-    });
+  const sortTacticRows = (rs: TacticRow[]) =>
+    [...rs]
+      .filter(
+        (r) =>
+          !tacticFilter ||
+          r.photographer
+            .split(",")
+            .map((s) => s.trim())
+            .includes(tacticFilter)
+      )
+      .sort((a, b) => {
+        if (tacticSort === "spot") return (a.spot || "").localeCompare(b.spot || "");
+        if (tacticSort === "photographer") {
+          const an = event.photographers.find((p) => p.acronym === a.photographer)?.name || a.photographer || "zzz";
+          const bn = event.photographers.find((p) => p.acronym === b.photographer)?.name || b.photographer || "zzz";
+          return an.localeCompare(bn);
+        }
+        if (tacticSort === "arrival") return timeToMin(a.arrival || "") - timeToMin(b.arrival || "");
+        return 0;
+      });
+  const sortedTactic = sortTacticRows(tacticRows);
 
   // Best-of lightbox state + FileDTO-shaped wrappers for the shared Lightbox
   const [boIndex, setBoIndex] = useState<number | null>(null);
@@ -418,7 +420,12 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                         : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
                     )}
                   >
-                    {d.date ? fmtDate(d.date) : `Day ${i + 1}`}
+                    {d.label || (d.date ? fmtDate(d.date) : `Day ${i + 1}`)}
+                    {d.label && d.date && (
+                      <span className="ml-1 font-normal opacity-70">
+                        {fmtDate(d.date)}{d.endDate && d.endDate !== d.date ? `–${fmtDate(d.endDate)}` : ""}
+                      </span>
+                    )}
                     {d.callTime && (
                       <span
                         className={cn(
@@ -464,111 +471,24 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                   <AlarmClock size={12} /> Call {pubTacticDays[0].callTime}
                 </p>
               )}
-            <div className="overflow-x-auto rounded-md border border-slate-200">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
-                    <th className="px-3 py-2">Spot</th>
-                    <th className="px-3 py-2">Photographer</th>
-                    {isFitnessIndoor && <th className="px-3 py-2">LS</th>}
-                    <th className="px-3 py-2">Lens</th>
-                    {!isFitnessIndoor && <th className="px-3 py-2">Arrival</th>}
-                    {!isFitnessIndoor && <th className="px-3 py-2">Location</th>}
-                    <th className="px-3 py-2">Note</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedTactic.map((r) => {
-                    const acrs = r.photographer.split(",").map((s) => s.trim()).filter(Boolean);
-                    const mates = acrs
-                      .map((a) => ({ a, p: event.photographers.find((x) => x.acronym === a) }))
-                      .filter((m) => m.a);
-                    // Fall back to the matching course spot when the row has no stored link
-                    const pos = (event.positions || []).find(
-                      (p) => p.lat !== null && p.lng !== null && (p.photographer || p.id) === r.spot
-                    );
-                    // Prefer live position coords — stored mapLinks from before
-                    // the loc: fix still snap to the nearest named place.
-                    const link = pos ? spotMapUrl(pos.lat!, pos.lng!) : r.mapLink;
-                    // White text on dark row colors (red/blue/violet), else default
-                    const fg = r.color ? contrastFg(r.color) : undefined;
-                    const fgStyle = fg ? { color: fg } : undefined;
-                    return (
-                      <tr
-                        key={r.id}
-                        style={r.color ? { background: r.color } : undefined}
-                        className="border-b border-slate-100 last:border-0 align-top"
-                      >
-                        <td className="min-w-28 max-w-44 px-3 py-2 font-bold text-slate-900" style={fgStyle}>
-                          <span className="break-words">{r.spot}</span>
-                        </td>
-                        <td className="px-3 py-2">
-                          {mates.length ? (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              {mates.map(({ a, p }) => (
-                                <span key={a} className="inline-flex items-center">
-                                  <span className="inline-flex h-5 min-w-10 items-center justify-center rounded bg-slate-900 px-1.5 text-[11px] font-bold text-white">
-                                    {a}
-                                  </span>
-                                  {p?.name && (
-                                    <span className="ml-1 font-bold text-slate-900" style={fgStyle}>{p.name}</span>
-                                  )}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
-                        {isFitnessIndoor && (
-                          <td className="px-3 py-2">
-                            {(r.ls || "").split(",").map((s) => s.trim()).filter(Boolean).length ? (
-                              <div className="flex flex-wrap items-center gap-1">
-                                {(r.ls || "").split(",").map((s) => s.trim()).filter(Boolean).map((a) => (
-                                  <span
-                                    key={a}
-                                    className="inline-flex h-5 min-w-8 items-center justify-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-amber-950"
-                                  >
-                                    {a}
-                                  </span>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
-                        )}
-                        <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900" style={fgStyle}>{r.lens || "—"}</td>
-                        {!isFitnessIndoor && (
-                          <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900" style={fgStyle}>
-                            {r.arrival || "—"}
-                          </td>
-                        )}
-                        {!isFitnessIndoor && (
-                          <td className="px-3 py-2">
-                            {link ? (
-                              <a
-                                href={link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-[11px] font-bold text-white hover:bg-slate-700"
-                              >
-                                <Navigation size={11} /> Maps
-                              </a>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
-                        )}
-                        <td className="px-3 py-2 text-slate-900" style={fgStyle}>
-                          <span className="break-words">{r.note || "—"}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            {(() => {
+              const d = pubTacticDays[tacticDay] || pubTacticDays[0];
+              const mainTitle = d?.mainName || ((d?.categories?.length ?? 0) > 0 ? "Race" : "");
+              return mainTitle ? (
+                <p className="mb-1.5 text-[11px] font-black uppercase tracking-wider text-slate-500">
+                  {mainTitle}
+                </p>
+              ) : null;
+            })()}
+            <TacticSpotTable rows={sortedTactic} event={event} isFitnessIndoor={isFitnessIndoor} />
+            {(pubTacticDays[tacticDay] || pubTacticDays[0])?.categories?.map((c) =>
+              c.rows.length ? (
+                <div key={c.id} className="mt-4">
+                  <p className="mb-1.5 text-[11px] font-black uppercase tracking-wider text-slate-500">{c.name}</p>
+                  <TacticSpotTable rows={sortTacticRows(c.rows)} event={event} isFitnessIndoor={isFitnessIndoor} />
+                </div>
+              ) : null
+            )}
             {(() => {
               const day = pubTacticDays[tacticDay] || pubTacticDays[0];
               const withCall = pubTacticDays.filter((d) => d.callTime);
@@ -978,5 +898,124 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         <Lightbox files={images} index={imgIndex} onClose={() => setImgIndex(null)} onNavigate={setImgIndex} />
       )}
     </div>
+  );
+}
+
+/** Spot-assignment table — shared by the main tactic table and named categories */
+function TacticSpotTable({
+  rows,
+  event,
+  isFitnessIndoor,
+}: {
+  rows: TacticRow[];
+  event: EventDTO;
+  isFitnessIndoor: boolean;
+}) {
+  return (
+            <div className="overflow-x-auto rounded-md border border-slate-200">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
+                    <th className="px-3 py-2">Spot</th>
+                    <th className="px-3 py-2">Photographer</th>
+                    {isFitnessIndoor && <th className="px-3 py-2">LS</th>}
+                    <th className="px-3 py-2">Lens</th>
+                    {!isFitnessIndoor && <th className="px-3 py-2">Arrival</th>}
+                    {!isFitnessIndoor && <th className="px-3 py-2">Location</th>}
+                    <th className="px-3 py-2">Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const acrs = r.photographer.split(",").map((s) => s.trim()).filter(Boolean);
+                    const mates = acrs
+                      .map((a) => ({ a, p: event.photographers.find((x) => x.acronym === a) }))
+                      .filter((m) => m.a);
+                    // Fall back to the matching course spot when the row has no stored link
+                    const pos = (event.positions || []).find(
+                      (p) => p.lat !== null && p.lng !== null && (p.photographer || p.id) === r.spot
+                    );
+                    // Prefer live position coords — stored mapLinks from before
+                    // the loc: fix still snap to the nearest named place.
+                    const link = pos ? spotMapUrl(pos.lat!, pos.lng!) : r.mapLink;
+                    // White text on dark row colors (red/blue/violet), else default
+                    const fg = r.color ? contrastFg(r.color) : undefined;
+                    const fgStyle = fg ? { color: fg } : undefined;
+                    return (
+                      <tr
+                        key={r.id}
+                        style={r.color ? { background: r.color } : undefined}
+                        className="border-b border-slate-100 last:border-0 align-top"
+                      >
+                        <td className="min-w-28 max-w-44 px-3 py-2 font-bold text-slate-900" style={fgStyle}>
+                          <span className="break-words">{r.spot}</span>
+                        </td>
+                        <td className="px-3 py-2">
+                          {mates.length ? (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {mates.map(({ a, p }) => (
+                                <span key={a} className="inline-flex items-center">
+                                  <span className="inline-flex h-5 min-w-10 items-center justify-center rounded bg-slate-900 px-1.5 text-[11px] font-bold text-white">
+                                    {a}
+                                  </span>
+                                  {p?.name && (
+                                    <span className="ml-1 font-bold text-slate-900" style={fgStyle}>{p.name}</span>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                        {isFitnessIndoor && (
+                          <td className="px-3 py-2">
+                            {(r.ls || "").split(",").map((s) => s.trim()).filter(Boolean).length ? (
+                              <div className="flex flex-wrap items-center gap-1">
+                                {(r.ls || "").split(",").map((s) => s.trim()).filter(Boolean).map((a) => (
+                                  <span
+                                    key={a}
+                                    className="inline-flex h-5 min-w-8 items-center justify-center rounded bg-amber-400 px-1.5 text-[11px] font-bold text-amber-950"
+                                  >
+                                    {a}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                        )}
+                        <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900" style={fgStyle}>{r.lens || "—"}</td>
+                        {!isFitnessIndoor && (
+                          <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900" style={fgStyle}>
+                            {r.arrival || "—"}
+                          </td>
+                        )}
+                        {!isFitnessIndoor && (
+                          <td className="px-3 py-2">
+                            {link ? (
+                              <a
+                                href={link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-[11px] font-bold text-white hover:bg-slate-700"
+                              >
+                                <Navigation size={11} /> Maps
+                              </a>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                        )}
+                        <td className="px-3 py-2 text-slate-900" style={fgStyle}>
+                          <span className="break-words">{r.note || "—"}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
   );
 }

@@ -11,10 +11,12 @@ import {
   AlarmClock,
   Eye,
   EyeOff,
+  Pencil,
+  X,
 } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input, Select, Textarea, Notice } from "@/components/ui";
 import { uid, spotMapUrl, fmtDate, dateRangeYmd } from "@/lib/utils";
-import type { TacticDay, TacticRow } from "@/types";
+import type { TacticCategory, TacticDay, TacticRow } from "@/types";
 import type { TabProps } from "./EventWorkspace";
 import HyroxTactic from "./HyroxTactic";
 import { useAutosave } from "./autosave";
@@ -127,6 +129,12 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
   const [days, setDays] = useState<TacticDay[]>(() => {
     if (!multiDay) return [];
     const saved = event.tacticDays || [];
+    // Once the TL has added/removed tabs manually, the saved list is the source
+    // of truth — auto date tabs are never re-generated behind their back.
+    // (Labeled tabs also prove managed mode even if the flag is missing.)
+    if (event.tacticManaged || saved.some((d) => d.label)) {
+      return saved.map((d) => ({ ...d, published: !!d.published }));
+    }
     // Days follow the event's start→end date range exactly; saved rows are
     // merged in for matching dates (stale saved days outside the range drop).
     const range = dateRange(event.date.slice(0, 10), (event.endDate || "").slice(0, 10));
@@ -142,25 +150,52 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
       };
     });
   });
-  const [activeDate, setActiveDate] = useState(() => days[0]?.date ?? "");
+  // Tabs are keyed by label for named (category) tabs — dates can be edited
+  // without detaching the active tab; plain date tabs key on the date.
+  const dayKey = (d: TacticDay) => (d.label ? `|${d.label}` : `${d.date}|`);
+  const [activeDate, setActiveDate] = useState(() => dayKey(days[0] || { date: "", rows: [] }));
+  const byKey = (key: string) => days.find((d) => dayKey(d) === key);
   const [rowsState, setRowsState] = useState<TacticRow[]>(event.tactic || []);
   const [notes, setNotes] = useState(event.notes || "");
   useAutosave(rowsState, patch, (v) => ({ tactic: v }));
+  // True once the TL adds/removes a tab — then saved tacticDays stay authoritative
+  const [managed, setManaged] = useState(
+    !!event.tacticManaged || !!(event.tacticDays || []).some((d) => d.label)
+  );
+  // Manual tab management — outdoor events only (HYROX/Fitness Indoor untouched)
+  const canManageTabs = multiDay && !isFitnessIndoor;
+  const eventRange = dateRange(event.date.slice(0, 10), (event.endDate || "").slice(0, 10));
   useAutosave(days, patch, (v) => ({
-    tacticDays: v.filter((d) => d.rows.length || d.callTime || d.note || d.published),
+    // In-range event dates are always persisted — removing one tab must not
+    // wipe the other (still empty) date tabs once the list is authoritative.
+    tacticDays: v.filter(
+      (d) => d.rows.length || d.callTime || d.note || d.published || d.label || (d.categories?.length ?? 0) > 0 || eventRange.includes(d.date)
+    ),
+    ...(managed ? { tacticManaged: true } : {}),
   }));
   useAutosave(notes, patch, (v) => ({ notes: v }));
 
+  // Categories — named sub-tables inside a date tactic ("Kids race" etc.),
+  // same role as shifts in the HYROX editor. "main" = the day's own rows.
+  // Stored with the day key so switching days naturally falls back to "main".
+  const [catTab, setCatTab] = useState({ key: activeDate, cat: "main" });
+  const activeCat = catTab.key === activeDate ? catTab.cat : "main";
+  const setActiveCat = (cat: string) => setCatTab({ key: activeDate, cat });
+  const activeDay = byKey(activeDate);
+  const cats = activeDay?.categories || [];
+
   const rows = multiDay
-    ? (days.find((d) => d.date === activeDate)?.rows ?? [])
+    ? activeCat === "main"
+      ? (activeDay?.rows ?? [])
+      : (cats.find((c) => c.id === activeCat)?.rows ?? [])
     : rowsState;
-  const setDayField = (key: "callTime" | "note" | "published", value: string | boolean) => {
+  const setDayField = (key: "callTime" | "note" | "published" | "date" | "endDate" | "mainName", value: string | boolean) => {
     if (!multiDay) return;
-    setDays((ds) => ds.map((d) => (d.date === activeDate ? { ...d, [key]: value } : d)));
+    setDays((ds) => ds.map((d) => (dayKey(d) === activeDate ? { ...d, [key]: value } : d)));
   };
   // Photographers only see a tactic once it's published
   const published = multiDay
-    ? !!days.find((d) => d.date === activeDate)?.published
+    ? !!byKey(activeDate)?.published
     : !!event.tacticPublished;
   const togglePublished = () => {
     if (multiDay) setDayField("published", !published);
@@ -168,11 +203,104 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
   };
   const setRows = (fn: (rs: TacticRow[]) => TacticRow[]) => {
     if (multiDay) {
-      setDays((ds) => ds.map((d) => (d.date === activeDate ? { ...d, rows: fn(d.rows) } : d)));
+      setDays((ds) =>
+        ds.map((d) => {
+          if (dayKey(d) !== activeDate) return d;
+          if (activeCat === "main") return { ...d, rows: fn(d.rows) };
+          return {
+            ...d,
+            categories: (d.categories || []).map((c) =>
+              c.id === activeCat ? { ...c, rows: fn(c.rows) } : c
+            ),
+          };
+        })
+      );
     } else {
       setRowsState(fn);
     }
   };
+
+  const [catOpen, setCatOpen] = useState(false);
+  const [newCat, setNewCat] = useState("");
+  const [mainEditOpen, setMainEditOpen] = useState(false);
+  const [mainNameDraft, setMainNameDraft] = useState("");
+  const [catEdit, setCatEdit] = useState<{ id: string; name: string } | null>(null);
+
+  function renameCategory(id: string, name: string) {
+    setDays((ds) =>
+      ds.map((d) =>
+        dayKey(d) === activeDate
+          ? { ...d, categories: (d.categories || []).map((c) => (c.id === id ? { ...c, name } : c)) }
+          : d
+      )
+    );
+    setCatEdit(null);
+  }
+
+  function addCategory() {
+    const name = newCat.trim();
+    if (!name) return;
+    const c: TacticCategory = { id: uid(), name, rows: [] };
+    setDays((ds) =>
+      ds.map((d) => (dayKey(d) === activeDate ? { ...d, categories: [...(d.categories || []), c] } : d))
+    );
+    setActiveCat(c.id);
+    setNewCat("");
+    setCatOpen(false);
+  }
+
+  function removeCategory(id: string) {
+    const c = cats.find((x) => x.id === id);
+    if (!c) return;
+    if (!confirm(`Remove category "${c.name}"? Its rows will be deleted.`)) return;
+    setDays((ds) =>
+      ds.map((d) =>
+        dayKey(d) === activeDate
+          ? { ...d, categories: (d.categories || []).filter((x) => x.id !== id) }
+          : d
+      )
+    );
+    if (activeCat === id) setActiveCat("main");
+  }
+
+  const missingDates = eventRange.filter((dt) => !days.some((d) => d.date === dt && !d.label));
+  const [addOpen, setAddOpen] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+
+  const sortDays = (ds: TacticDay[]) =>
+    [...ds].sort((a, b) => {
+      if (!!a.label !== !!b.label) return a.label ? 1 : -1; // dates first, custom tabs last
+      return a.date.localeCompare(b.date);
+    });
+
+  function removeDay(key: string) {
+    const d = byKey(key);
+    if (!d) return;
+    if (!confirm(`Remove tactic "${d.label || fmtDate(d.date) || "tab"}"? Its rows will be deleted.`)) return;
+    const next = days.filter((x) => dayKey(x) !== key);
+    setDays(next);
+    setManaged(true);
+    if (activeDate === key) setActiveDate(dayKey(next[0] || { date: "", rows: [] }));
+  }
+
+  function addDateTab(date: string) {
+    const d: TacticDay = { date, rows: [], callTime: "", note: "" };
+    setDays((ds) => sortDays([...ds, d]));
+    setManaged(true);
+    setActiveDate(dayKey(d));
+    setAddOpen(false);
+  }
+
+  function addCustomTab() {
+    const label = newLabel.trim();
+    if (!label) return;
+    const d: TacticDay = { date: "", label, rows: [], callTime: "", note: "" };
+    setDays((ds) => sortDays([...ds, d]));
+    setManaged(true);
+    setActiveDate(dayKey(d));
+    setNewLabel("");
+    setAddOpen(false);
+  }
   // rows whose spot cell shows a free-form input instead of the position dropdown
   const [customLinkRows, setCustomLinkRows] = useState<Set<string>>(new Set());
   const [customLensRows, setCustomLensRows] = useState<Set<string>>(new Set());
@@ -184,13 +312,26 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
 
   // Clone another day's full tactic (rows, call time, day note) into the
   // active day — rows get fresh ids; publish state of the target day is kept.
-  function cloneDay(fromDate: string) {
-    const src = days.find((d) => d.date === fromDate);
+  const dayLabel = (d?: TacticDay) =>
+    d ? d.label || (d.date ? fmtDate(d.date) : "Unscheduled") : "";
+
+  function cloneDay(fromKey: string) {
+    const src = byKey(fromKey);
     if (!src) return;
     setDays((ds) =>
       ds.map((d) =>
-        d.date === activeDate
-          ? { ...d, rows: src.rows.map((r) => ({ ...r, id: uid() })), callTime: src.callTime, note: src.note }
+        dayKey(d) === activeDate
+          ? {
+              ...d,
+              rows: src.rows.map((r) => ({ ...r, id: uid() })),
+              callTime: src.callTime,
+              note: src.note,
+              categories: (src.categories || []).map((c) => ({
+                ...c,
+                id: uid(),
+                rows: c.rows.map((r) => ({ ...r, id: uid() })),
+              })),
+            }
           : d
       )
     );
@@ -230,7 +371,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
     <div className="mx-auto max-w-6xl space-y-4">
       <Card>
         <CardHeader
-          title={multiDay && activeDate ? `Tactic — ${fmtDate(activeDate)} (${rows.length} spots)` : `Race tactic (${rows.length} spots)`}
+          title={multiDay && activeDate ? `Tactic — ${dayLabel(byKey(activeDate))} (${rows.length} spots)` : `Race tactic (${rows.length} spots)`}
           icon={<ClipboardList size={15} className="text-blue-600" />}
           action={
             <div className="flex items-center gap-2">
@@ -279,28 +420,111 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
 
           {multiDay && (
             <div className="mb-3 flex flex-wrap items-center gap-1.5">
-              {days.length > 1 &&
-                days.map((d) => (
+              {days.map((d) => (
+                <span key={dayKey(d)} className="relative inline-flex">
                   <button
-                    key={d.date || "day"}
-                    onClick={() => setActiveDate(d.date)}
-                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
-                      d.date === activeDate
+                    onClick={() => setActiveDate(dayKey(d))}
+                    className={`rounded-md py-1.5 text-xs font-semibold transition-colors ${
+                      canManageTabs ? "pl-3 pr-6" : "px-3"
+                    } ${
+                      dayKey(d) === activeDate
                         ? "bg-slate-900 text-white"
                         : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
                     }`}
                   >
-                    {d.date ? fmtDate(d.date) : "Unscheduled"}
+                    {dayLabel(d)}
                   </button>
-                ))}
+                  {canManageTabs && (
+                    <button
+                      onClick={() => removeDay(dayKey(d))}
+                      title="Remove this tactic tab"
+                      className={`absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 ${
+                        dayKey(d) === activeDate
+                          ? "text-slate-400 hover:text-white"
+                          : "text-slate-300 hover:text-red-500"
+                      }`}
+                    >
+                      <X size={11} />
+                    </button>
+                  )}
+                </span>
+              ))}
+              {canManageTabs && (
+                <div className="relative">
+                  <Button size="sm" variant="outline" onClick={() => setAddOpen((v) => !v)}>
+                    <Plus size={13} /> Tactic
+                  </Button>
+                  {addOpen && (
+                    <>
+                      <button
+                        aria-label="Close"
+                        onClick={() => setAddOpen(false)}
+                        className="fixed inset-0 z-10 cursor-default"
+                      />
+                      <div className="absolute left-0 top-9 z-20 w-52 rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+                        {missingDates.length > 0 && (
+                          <>
+                            <p className="mb-1 px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              Event day
+                            </p>
+                            {missingDates.map((dt) => (
+                              <button
+                                key={dt}
+                                onClick={() => addDateTab(dt)}
+                                className="block w-full rounded px-2 py-1.5 text-left text-xs font-medium text-slate-700 hover:bg-slate-100"
+                              >
+                                {fmtDate(dt)}
+                              </button>
+                            ))}
+                            <div className="my-1.5 border-t border-slate-100" />
+                          </>
+                        )}
+                        <p className="mb-1 px-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Custom (e.g. 100K)
+                        </p>
+                        <div className="flex gap-1">
+                          <Input
+                            value={newLabel}
+                            onChange={(e) => setNewLabel(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && addCustomTab()}
+                            placeholder="Tab name…"
+                            className="h-8 text-xs"
+                          />
+                          <Button size="sm" variant="outline" onClick={addCustomTab} disabled={!newLabel.trim()}>
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               <div className="ml-auto flex items-center gap-1.5">
+                {byKey(activeDate)?.label && (
+                  <>
+                    <span className="text-xs text-slate-500">Dates</span>
+                    <Input
+                      type="date"
+                      value={byKey(activeDate)?.date || ""}
+                      onChange={(e) => setDayField("date", e.target.value)}
+                      className="h-9 w-36 text-xs"
+                    />
+                    <span className="text-xs text-slate-400">–</span>
+                    <Input
+                      type="date"
+                      value={byKey(activeDate)?.endDate || ""}
+                      onChange={(e) => setDayField("endDate", e.target.value)}
+                      className="h-9 w-36 text-xs"
+                    />
+                  </>
+                )}
                 <AlarmClock size={13} className="text-slate-400" />
                 <span className="text-xs text-slate-500">
-                  Call time{days.length > 1 && activeDate ? ` — ${fmtDate(activeDate)}` : ""}
+                  Call time{activeDate ? ` — ${dayLabel(byKey(activeDate))}` : ""}
                 </span>
                 <Input
                   type="time"
-                  value={days.find((d) => d.date === activeDate)?.callTime || ""}
+                  value={byKey(activeDate)?.callTime || ""}
                   onChange={(e) => setDayField("callTime", e.target.value)}
                   className="h-9 w-28 text-xs"
                 />
@@ -314,13 +538,178 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                 >
                   <option value="">Copy day from…</option>
                   {days
-                    .filter((d) => d.date !== activeDate)
+                    .filter((d) => dayKey(d) !== activeDate)
                     .map((d) => (
-                      <option key={d.date} value={d.date}>
-                        {d.date ? fmtDate(d.date) : "Unscheduled"}
+                      <option key={dayKey(d)} value={dayKey(d)}>
+                        {dayLabel(d)}
                       </option>
                     ))}
                 </Select>
+              )}
+            </div>
+          )}
+
+          {/* Category sub-tabs — multiple races inside one date tactic */}
+          {multiDay && activeDay && (canManageTabs || cats.length > 0) && (
+            <div className="mb-3 flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Category
+              </span>
+              <button
+                onClick={() => setActiveCat("main")}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                  activeCat === "main"
+                    ? "bg-slate-900 text-white"
+                    : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                {activeDay.mainName || "Race"}
+              </button>
+              {canManageTabs && (
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setMainNameDraft(activeDay.mainName || "");
+                      setMainEditOpen((v) => !v);
+                    }}
+                    title="Rename the main table"
+                    className="rounded-md p-1 text-slate-400 ring-1 ring-slate-200 hover:bg-slate-100 hover:text-slate-600"
+                  >
+                    <Pencil size={11} />
+                  </button>
+                  {mainEditOpen && (
+                    <>
+                      <button
+                        aria-label="Close"
+                        onClick={() => setMainEditOpen(false)}
+                        className="fixed inset-0 z-10 cursor-default"
+                      />
+                      <div className="absolute left-0 top-7 z-20 flex w-48 gap-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+                        <Input
+                          value={mainNameDraft}
+                          onChange={(e) => setMainNameDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              setDayField("mainName", mainNameDraft.trim());
+                              setMainEditOpen(false);
+                            }
+                          }}
+                          placeholder="Race"
+                          className="h-8 text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setDayField("mainName", mainNameDraft.trim());
+                            setMainEditOpen(false);
+                          }}
+                        >
+                          Save
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {cats.map((c) => (
+                <span key={c.id} className="relative inline-flex">
+                  <button
+                    onClick={() => setActiveCat(c.id)}
+                    className={`rounded-md py-1 text-[11px] font-semibold transition-colors ${
+                      canManageTabs ? "pl-2.5 pr-8" : "px-2.5"
+                    } ${
+                      activeCat === c.id
+                        ? "bg-slate-900 text-white"
+                        : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {c.name}
+                  </button>
+                  {canManageTabs && (
+                    <>
+                      <button
+                        onClick={() => setCatEdit({ id: c.id, name: c.name })}
+                        title="Rename category"
+                        className={`absolute right-4 top-1/2 -translate-y-1/2 rounded p-0.5 ${
+                          activeCat === c.id
+                            ? "text-slate-400 hover:text-white"
+                            : "text-slate-300 hover:text-slate-600"
+                        }`}
+                      >
+                        <Pencil size={9} />
+                      </button>
+                      <button
+                        onClick={() => removeCategory(c.id)}
+                        title="Remove this category"
+                        className={`absolute right-0.5 top-1/2 -translate-y-1/2 rounded p-0.5 ${
+                          activeCat === c.id
+                            ? "text-slate-400 hover:text-white"
+                            : "text-slate-300 hover:text-red-500"
+                        }`}
+                      >
+                        <X size={10} />
+                      </button>
+                    </>
+                  )}
+                </span>
+              ))}
+              {catEdit && (
+                <>
+                  <button
+                    aria-label="Close"
+                    onClick={() => setCatEdit(null)}
+                    className="fixed inset-0 z-10 cursor-default"
+                  />
+                  <div className="relative z-20 flex w-48 gap-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+                    <Input
+                      autoFocus
+                      value={catEdit.name}
+                      onChange={(e) => setCatEdit({ ...catEdit, name: e.target.value })}
+                      onKeyDown={(e) => e.key === "Enter" && catEdit.name.trim() && renameCategory(catEdit.id, catEdit.name.trim())}
+                      className="h-8 text-xs"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!catEdit.name.trim()}
+                      onClick={() => renameCategory(catEdit.id, catEdit.name.trim())}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </>
+              )}
+              {canManageTabs && (
+                <div className="relative">
+                  <button
+                    onClick={() => setCatOpen((v) => !v)}
+                    className="rounded-md bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-dashed ring-slate-300 hover:bg-slate-100"
+                  >
+                    + Category
+                  </button>
+                  {catOpen && (
+                    <>
+                      <button
+                        aria-label="Close"
+                        onClick={() => setCatOpen(false)}
+                        className="fixed inset-0 z-10 cursor-default"
+                      />
+                      <div className="absolute left-0 top-8 z-20 flex w-48 gap-1 rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+                        <Input
+                          value={newCat}
+                          onChange={(e) => setNewCat(e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && addCategory()}
+                          placeholder="e.g. Kids race"
+                          className="h-8 text-xs"
+                        />
+                        <Button size="sm" variant="outline" onClick={addCategory} disabled={!newCat.trim()}>
+                          Add
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -653,10 +1042,10 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
         {multiDay && (
           <div className="border-t border-slate-100 px-4 py-3">
             <p className="mb-1.5 text-xs font-semibold text-slate-500">
-              Day note {activeDate ? `— ${fmtDate(activeDate)}` : ""}
+              Day note {activeDate ? `— ${dayLabel(byKey(activeDate))}` : ""}
             </p>
             <Textarea
-              value={days.find((d) => d.date === activeDate)?.note || ""}
+              value={byKey(activeDate)?.note || ""}
               onChange={(e) => setDayField("note", e.target.value)}
               rows={2}
               placeholder="Note for this day's tactic (weather, venue access, shift plan…)"

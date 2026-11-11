@@ -53,6 +53,7 @@ const EventSchema = new Schema(
     tactic: { type: [Schema.Types.Mixed], default: [] },
     tacticPublished: { type: Boolean, default: false },
     tacticDays: { type: [Schema.Types.Mixed], default: [] },
+    tacticManaged: { type: Boolean, default: false },
     hyrox: { type: Schema.Types.Mixed, default: null },
     course: { type: Schema.Types.Mixed, default: null },
     documents: { type: [Schema.Types.Mixed], default: [] },
