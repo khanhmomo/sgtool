@@ -334,6 +334,10 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
       newId = `${base} (${n})`;
     }
     clean.id = newId;
+    // Store a canonical exact-pin link — a pasted /place/ URL makes Google Maps
+    // re-resolve to a nearby named place instead of the intended coordinates.
+    const linkCoords = extractCoords(clean.mapLink || "");
+    if (linkCoords) clean.mapLink = spotMapUrl(linkCoords.lat, linkCoords.lng);
     const next = editing.__isNew
       ? [...positions, clean]
       : positions.map((p) => (p.id === editing.id ? clean : p));

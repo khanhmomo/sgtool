@@ -84,15 +84,17 @@ export function extractCoords(url: string): ParsedCoords | null {
     }
   }
 
-  // Google-sourced patterns — inside China these are GCJ-02, normalize to WGS-84
+  // Google-sourced patterns — inside China these are GCJ-02, normalize to WGS-84.
+  // !3d/!4d first: in /place/ URLs it's the pin's true coords, while @lat,lng is
+  // only the viewport center and can sit hundreds of meters away.
   const patterns: RegExp[] = [
+    /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/, // place data !3d LAT !4d LNG
     /@(-?\d+\.\d+),\s*(-?\d+\.\d+)/, // .../@31.23,121.47,15z
     /\/maps\/(?:search|dir)\/(-?\d+\.\d+),\s*\+?(-?\d+\.\d+)/, // /maps/search/31.23,121.47
     /[?&]q=(-?\d+\.\d+),\s*(-?\d+\.\d+)/, // ?q=lat,lng
     /[?&]query=(-?\d+\.\d+),\s*(-?\d+\.\d+)/,
     /[?&]ll=(-?\d+\.\d+),\s*(-?\d+\.\d+)/,
     /[?&]center=(-?\d+\.\d+),\s*(-?\d+\.\d+)/,
-    /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/, // place data !3d LAT !4d LNG
   ];
 
   for (const re of patterns) {

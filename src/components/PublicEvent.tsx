@@ -101,9 +101,13 @@ function KV({ label, children }: { label: string; children: React.ReactNode }) {
 
 function MapLink({ url, label = "Open in Google Maps" }: { url?: string; label?: string }) {
   if (!url) return null;
+  // Links carrying coords get rebuilt as exact-pin URLs — a stored /place/ URL
+  // makes Google Maps snap to a nearby named place instead of the real spot.
+  const c = extractCoords(url);
+  const href = c ? spotMapUrl(c.lat, c.lng) : url;
   return (
     <a
-      href={url}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       className="mt-1 inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
@@ -937,7 +941,13 @@ function TacticSpotTable({
                     );
                     // Prefer live position coords — stored mapLinks from before
                     // the loc: fix still snap to the nearest named place.
-                    const link = pos ? spotMapUrl(pos.lat!, pos.lng!) : r.mapLink;
+                    // Same for any stored link that carries coords: rebuild it as
+                    // an exact-pin URL so Google Maps doesn't snap to a POI.
+                    const stored = (() => {
+                      const c = extractCoords(r.mapLink || "");
+                      return c ? spotMapUrl(c.lat, c.lng) : r.mapLink;
+                    })();
+                    const link = pos ? spotMapUrl(pos.lat!, pos.lng!) : stored;
                     // White text on dark row colors (red/blue/violet), else default
                     const fg = r.color ? contrastFg(r.color) : undefined;
                     const fgStyle = fg ? { color: fg } : undefined;
