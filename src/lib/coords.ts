@@ -10,11 +10,29 @@ export interface ParsedCoords {
 // ~500m from WGS-84 (used by OSM/GPX). Convert extracted coords to WGS-84 so
 // markers align with Leaflet/OSM tiles and course analysis stays correct.
 
+import { CHINA_HAINAN, CHINA_MAINLAND } from "./china-boundary";
+
+/** Ray-casting point-in-polygon. Ring is [lng, lat] pairs. */
+function inRing(ring: [number, number][], lng: number, lat: number): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
 function outOfChina(lat: number, lng: number): boolean {
-  // GCJ-02 ("Mars" datum) is used by Google only for mainland China. The coarse
-  // bounding box also covers Taiwan / HK / Macau, where Google uses WGS-84 —
-  // applying the shift there offsets the pin by ~500m. Exclude those regions.
-  if (lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271) return true;
+  // GCJ-02 ("Mars" datum) is used by Google only for mainland China — everywhere
+  // else (Vietnam, Thailand, Korea, Taiwan…) Google serves WGS-84 and applying
+  // the shift would offset the pin by ~500m. Test against the real boundary.
+  const inChina = inRing(CHINA_MAINLAND, lng, lat) || inRing(CHINA_HAINAN, lng, lat);
+  if (!inChina) return true;
+  // Exclude territories Google serves as WGS-84 even though they sit inside/near
+  // the boundary polygon: Taiwan, Hong Kong + Macau, Korean peninsula.
   // Taiwan
   if (lng >= 119.3 && lng <= 122.1 && lat >= 21.8 && lat <= 25.4) return true;
   // Hong Kong + Macau
