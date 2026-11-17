@@ -52,7 +52,7 @@ const SPOT_COLORS = [
   "#a855f7", // violet
 ];
 
-type EditingPosition = Position & { __isNew?: boolean };
+type EditingPosition = Position & { __isNew?: boolean; latText?: string; lngText?: string };
 
 export default function CourseTab({ event, patch, saving }: TabProps) {
   const [positions, setPositions] = useState<Position[]>(event.positions);
@@ -359,8 +359,21 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
 
   async function saveEditing() {
     if (!editing) return;
-    const { __isNew, ...clean } = editing;
+    const { __isNew, latText, lngText, ...clean } = editing;
     void __isNew;
+    if (latText !== undefined) {
+      const v = latText.trim() === "" ? NaN : parseFloat(latText);
+      clean.lat = isFinite(v) ? v : null;
+    }
+    if (lngText !== undefined) {
+      const v = lngText.trim() === "" ? NaN : parseFloat(lngText);
+      clean.lng = isFinite(v) ? v : null;
+    }
+    const derived = deriveFromCourse(clean.lat, clean.lng);
+    if (derived.distances.length) {
+      clean.distances = derived.distances;
+      clean.sport = derived.sport;
+    }
     // Spot ID mirrors the spot name; append a counter if another spot has it
     const base = clean.photographer.trim() || clean.id;
     let newId = base;
@@ -880,30 +893,26 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Latitude">
                   <Input
-                    value={editing.lat ?? ""}
+                    value={editing.latText ?? (editing.lat != null ? String(editing.lat) : "")}
                     onBlur={(e) => {
                       const lat = e.target.value === "" ? null : parseFloat(e.target.value);
                       const { distances, sport } = deriveFromCourse(lat, editing.lng);
-                      setEditing({ ...editing, lat, distances: distances.length ? distances : editing.distances, sport });
+                      setEditing({ ...editing, lat, latText: undefined, distances: distances.length ? distances : editing.distances, sport });
                     }}
-                    onChange={(e) =>
-                      setEditing({ ...editing, lat: e.target.value === "" ? null : parseFloat(e.target.value) })
-                    }
+                    onChange={(e) => setEditing({ ...editing, latText: e.target.value })}
                     placeholder="31.23041"
                     className="font-mono"
                   />
                 </Field>
                 <Field label="Longitude">
                   <Input
-                    value={editing.lng ?? ""}
+                    value={editing.lngText ?? (editing.lng != null ? String(editing.lng) : "")}
                     onBlur={(e) => {
                       const lng = e.target.value === "" ? null : parseFloat(e.target.value);
                       const { distances, sport } = deriveFromCourse(editing.lat, lng);
-                      setEditing({ ...editing, lng, distances: distances.length ? distances : editing.distances, sport });
+                      setEditing({ ...editing, lng, lngText: undefined, distances: distances.length ? distances : editing.distances, sport });
                     }}
-                    onChange={(e) =>
-                      setEditing({ ...editing, lng: e.target.value === "" ? null : parseFloat(e.target.value) })
-                    }
+                    onChange={(e) => setEditing({ ...editing, lngText: e.target.value })}
                     placeholder="121.47370"
                     className="font-mono"
                   />

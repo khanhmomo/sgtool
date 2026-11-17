@@ -13,7 +13,7 @@ export const HYROX_STATIONS = [
   "SkiErg",
   "Sled Push",
   "Sled Pull",
-  "Burpees (optional)",
+  "Burpees",
   "Rowing",
   "Farmers Carry",
   "Sandbag Lunges",
@@ -29,9 +29,13 @@ const isExternal = (s: string) => /farmers?['\u2019]?\s*carry/i.test(s) || /ls\s
 
 /** Numbered race stations are HYROX_STATIONS[0..7] (SkiErg=1 … Wall Ball=8);
     later entries (Finish, Hero Wall, LS Arch) are unnumbered */
+/** Normalize legacy station names saved before renames (e.g. "Burpees (optional)") */
+const normStation = (s: string) => s.replace(/\s*\(optional\)\s*/i, " ").replace(/\s+/g, " ").trim();
+
 const stationLabel = (name: string) => {
-  const i = HYROX_STATIONS.indexOf(name);
-  return i >= 0 && i < 8 ? `${i + 1}. ${name}` : name;
+  const n = normStation(name);
+  const i = HYROX_STATIONS.indexOf(n);
+  return i >= 0 && i < 8 ? `${i + 1}. ${n}` : n;
 };
 
 /** Row background per station (public view) — plain white for a clean read */
@@ -239,8 +243,18 @@ const fmtT = (t: string) => {
 /** A break row that carries real content — skip fully-empty placeholder rows */
 const nonEmptyBreak = (b: HyroxBreakRow) => !!(b.cover || b.start || b.end);
 
+/** Burpees is only shown when it carries real content (crew or note) */
+const showStation = (st: HyroxStationPlan) =>
+  !/burpee/i.test(st.station) ||
+  st.photographers.length > 0 || (st.ls || []).length > 0 || st.cover.length > 0 || !!st.note?.trim();
+
 export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: HyroxTactic; team?: string[]; callTime?: string; dayNote?: string }) {
-  const shifts = hyrox.shifts || [];
+  const shifts = (hyrox.shifts || []).map((sh) => {
+    const seen = new Set<string>();
+    return sh
+      .map((st) => ({ ...st, station: normStation(st.station) }))
+      .filter((st) => !seen.has(st.station) && seen.add(st.station));
+  });
   const groups = hyrox.switchGroups || [];
   const breaks = normBreakTables(hyrox.breaks);
   // Per-shift station filter — key = shift index, value = station name ("ALL" = no filter)
@@ -265,7 +279,8 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
           <Markdown text={dayNote} />
         </div>
       )}
-      {shifts.map((stations, si) => {
+      {shifts.map((allStations, si) => {
+        const stations = allStations.filter(showStation);
         const active = stationFilter[si] || "ALL";
         const visible = active === "ALL" ? stations : stations.filter((s) => s.station === active);
         return (
@@ -629,11 +644,15 @@ const normBreakTables = (b: unknown): HyroxBreakTable[] => {
 
 const normTactic = (t: HyroxTactic): HyroxTactic => {
   const shifts = (t.shifts || []).map((sh) => {
-    const rows = sh.map((st) => ({
-      ...st,
-      ls: Array.isArray(st.ls) ? st.ls : [],
-      breaks: normBreaks(st.breaks as unknown as string | BreakRange[]),
-    }));
+    const seen = new Set<string>();
+    const rows = sh
+      .map((st) => ({
+        ...st,
+        station: normStation(st.station),
+        ls: Array.isArray(st.ls) ? st.ls : [],
+        breaks: normBreaks(st.breaks as unknown as string | BreakRange[]),
+      }))
+      .filter((st) => !seen.has(st.station) && seen.add(st.station));
     // append any fixed stations added after this tactic was saved (e.g. "LS Arch")
     for (const s of HYROX_STATIONS) {
       if (!rows.some((r) => r.station === s)) rows.push(blankStation(s));
