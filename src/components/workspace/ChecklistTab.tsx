@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, CheckSquare, Download, Plus, Trash2, X } from "lucide-react";
+import { BookOpen, CheckSquare, CreditCard, Download, Plus, Trash2, X } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input } from "@/components/ui";
 import { cn, uid } from "@/lib/utils";
 import type { ChecklistGroup, TemplateDTO } from "@/types";
@@ -13,6 +13,8 @@ export default function ChecklistTab({ event, patch }: TabProps) {
   const [newItemText, setNewItemText] = useState<Record<string, string>>({});
   const [newGroup, setNewGroup] = useState("");
   const [importOpen, setImportOpen] = useState(false);
+  const [cardOpen, setCardOpen] = useState(false);
+  const [cardName, setCardName] = useState("");
   const [templates, setTemplates] = useState<TemplateDTO[] | null>(null);
 
   useEffect(() => {
@@ -57,6 +59,19 @@ export default function ChecklistTab({ event, patch }: TabProps) {
     save(next);
   }
 
+  function addCardChecklist() {
+    const title = cardName.trim().toUpperCase();
+    if (!title || groups.some((g) => g.title === title)) return;
+    const items = event.photographers.map((p) => ({
+      id: uid(),
+      text: `${p.acronym || p.name}${p.name && p.name !== p.acronym ? ` — ${p.name}` : ""}`,
+      done: false,
+    }));
+    setCardName("");
+    setCardOpen(false);
+    save([...groups, { id: uid(), title, items }]);
+  }
+
   function addGroup() {
     const title = newGroup.trim();
     if (!title) return;
@@ -81,10 +96,34 @@ export default function ChecklistTab({ event, patch }: TabProps) {
             {done}/{total} done
           </span>
         </div>
-        <Button size="sm" variant="outline" onClick={() => setImportOpen((v) => !v)}>
-          <BookOpen size={13} /> Import from Bookshelf
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setCardOpen((v) => !v)} title="One checkbox per team member — mark when you have copied their card">
+            <CreditCard size={13} /> Add card checklist
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setImportOpen((v) => !v)}>
+            <BookOpen size={13} /> Import from Bookshelf
+          </Button>
+        </div>
       </div>
+
+      {cardOpen && (
+        <Card>
+          <div className="flex items-center gap-2 p-3">
+            <Input
+              value={cardName}
+              onChange={(e) => setCardName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addCardChecklist()}
+              placeholder="Group name, e.g. First card"
+              className="h-8 flex-1 text-xs"
+              autoFocus
+            />
+            <Button size="sm" onClick={addCardChecklist}>Create</Button>
+            <button onClick={() => setCardOpen(false)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100">
+              <X size={14} />
+            </button>
+          </div>
+        </Card>
+      )}
 
       {importOpen && (
         <Card>
