@@ -13,6 +13,7 @@ import {
   Settings,
   Megaphone,
   Inbox,
+  Camera,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { EventDTO, FileDTO } from "@/types";
@@ -24,6 +25,7 @@ import TacticTab from "./TacticTab";
 import CourseTab from "./CourseTab";
 import FilesTab from "./FilesTab";
 import ChecklistTab from "./ChecklistTab";
+import CameraCheckTab from "./CameraCheckTab";
 import RequestsTab from "./RequestsTab";
 import SettingsTab from "./SettingsTab";
 
@@ -36,6 +38,7 @@ const TABS = [
   { id: "course", label: "Course & Positions", icon: Route },
   { id: "files", label: "Files", icon: FolderOpen },
   { id: "checklist", label: "Checklist", icon: CheckSquare },
+  { id: "camera", label: "Camera check", icon: Camera },
   { id: "requests", label: "Requests", icon: Inbox },
   { id: "settings", label: "Settings", icon: Settings },
 ] as const;
@@ -159,6 +162,7 @@ export default function EventWorkspace({
       {tab === "course" && !noCourse && <CourseTab {...props} />}
       {tab === "files" && <FilesTab {...props} files={files} setFiles={setFiles} />}
       {tab === "checklist" && <ChecklistTab {...props} />}
+      {tab === "camera" && <CameraCheckTab {...props} />}
       {tab === "requests" && <RequestsTab {...props} />}
       {tab === "settings" && (
         <SettingsTab {...props} onDeleted={() => router.push("/dashboard")} />

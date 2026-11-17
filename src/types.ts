@@ -304,6 +304,8 @@ export interface EventDTO {
   documents: EventDoc[];
   checklist: ChecklistGroup[];
   requests: EventRequest[];
+  /** Camera check state per date → photographer id — live checkbox page */
+  cameraCheck?: Record<string, Record<string, { checked: boolean; by?: string; at?: number }>>;
   notes: string;
   createdAt: string;
   updatedAt: string;

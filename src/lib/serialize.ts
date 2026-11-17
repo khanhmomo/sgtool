@@ -70,6 +70,7 @@ export function serializeEvent(doc: any): EventDTO {
     documents: e.documents || [],
     checklist: e.checklist || [],
     requests: e.requests || [],
+    cameraCheck: e.cameraCheck || {},
     notes: e.notes || "",
     createdAt: e.createdAt || "",
     updatedAt: e.updatedAt || "",
