@@ -28,26 +28,36 @@ export default function CameraCheckTab({ event }: TabProps) {
     if (d.key) setShareKey(d.key);
   }, [event.id]);
 
-  // Live sync — poll while the tab is open and the page is visible
+  // Live sync — SSE pushes updates instantly; slow poll as fallback
   useEffect(() => {
     const t0 = setTimeout(() => void refresh(), 0);
+    const es = new EventSource(`/api/events/${event.id}/camera-check/stream`);
+    es.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data) as { checks?: Checks };
+        if (d.checks) setChecks(d.checks);
+      } catch { /* ignore */ }
+    };
     const t = setInterval(() => {
       if (!document.hidden) void refresh();
-    }, 2500);
-    return () => { clearTimeout(t0); clearInterval(t); };
-  }, [refresh, tick]);
+    }, 15000);
+    return () => { clearTimeout(t0); clearInterval(t); es.close(); };
+  }, [refresh, tick, event.id]);
 
   const toggle = async (pid: string) => {
     if (busy.current.has(pid)) return;
     busy.current.add(pid);
     const next = !dayChecks[pid]?.checked;
     setChecks((c) => ({ ...c, [activeDate]: { ...(c[activeDate] || {}), [pid]: { checked: next, by: "me", at: Date.now() } } }));
-    await fetch(`/api/events/${event.id}/camera-check`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: activeDate, pid, checked: next }),
-    });
-    busy.current.delete(pid);
+    try {
+      await fetch(`/api/events/${event.id}/camera-check`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: activeDate, pid, checked: next }),
+      });
+    } finally {
+      busy.current.delete(pid);
+    }
   };
 
   const dayChecks: DayChecks = checks[activeDate] || {};

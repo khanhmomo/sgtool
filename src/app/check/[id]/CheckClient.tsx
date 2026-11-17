@@ -30,11 +30,18 @@ export default function CheckClient({ eventId, k }: { eventId: string; k: string
 
   useEffect(() => {
     const t0 = setTimeout(() => void refresh(), 0);
+    const es = new EventSource(`/api/events/${eventId}/camera-check/stream?key=${encodeURIComponent(k)}`);
+    es.onmessage = (e) => {
+      try {
+        const d = JSON.parse(e.data) as { checks?: Checks };
+        if (d.checks) setData((prev) => prev && { ...prev, checks: d.checks! });
+      } catch { /* ignore */ }
+    };
     const t = setInterval(() => {
       if (!document.hidden) void refresh();
-    }, 2500);
-    return () => { clearTimeout(t0); clearInterval(t); };
-  }, [refresh]);
+    }, 15000);
+    return () => { clearTimeout(t0); clearInterval(t); es.close(); };
+  }, [refresh, eventId, k]);
 
   const toggle = async (pid: string, cur: boolean) => {
     if (busy.current.has(pid)) return;
@@ -43,12 +50,15 @@ export default function CheckClient({ eventId, k }: { eventId: string; k: string
       ...d,
       checks: { ...d.checks, [activeDate]: { ...(d.checks[activeDate] || {}), [pid]: { checked: !cur, by: "me", at: Date.now() } } },
     });
-    await fetch(`/api/events/${eventId}/camera-check?key=${encodeURIComponent(k)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: activeDate, pid, checked: !cur }),
-    });
-    busy.current.delete(pid);
+    try {
+      await fetch(`/api/events/${eventId}/camera-check?key=${encodeURIComponent(k)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: activeDate, pid, checked: !cur }),
+      });
+    } finally {
+      busy.current.delete(pid);
+    }
   };
 
   if (error) {
