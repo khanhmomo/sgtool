@@ -38,6 +38,17 @@ const stationLabel = (name: string) => {
   return i >= 0 && i < 8 ? `${i + 1}. ${n}` : n;
 };
 
+/** Station reference image — local photos in /public (station1-8, finish, herowall) */
+const stationImg = (name: string) => {
+  const n = normStation(name);
+  const i = HYROX_STATIONS.indexOf(n);
+  if (i >= 0 && i < 8) return `/station${i + 1}.jpeg`;
+  if (/finish/i.test(n)) return "/finish.jpeg";
+  if (/hero\s*wall/i.test(n)) return "/herowall.jpeg";
+  if (/ls\s*arch/i.test(n)) return "/arch.jpeg";
+  return `https://picsum.photos/seed/${encodeURIComponent(n)}/192/128`;
+};
+
 /** Row background per station (public view) — plain white for a clean read */
 const STATION_PASTEL: Record<string, string> = Object.fromEntries(
   HYROX_STATIONS.map((s) => [s, "bg-white"])
@@ -584,7 +595,10 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                     className={cn("align-top text-slate-900", STATION_PASTEL[st.station] || "bg-slate-50")}
                   >
                     <td className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">
-                      {stationLabel(st.station)}
+                      <span className="inline-flex items-center gap-1.5">
+                        <img src={stationImg(st.station)} alt="" className="h-14 w-24 rounded-md object-cover" />
+                        {stationLabel(st.station)}
+                      </span>
                       {st.note && (
                         <>
                           <button
@@ -645,6 +659,7 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                 >
                   {/* Station header */}
                   <div className="flex items-center gap-2 border-b border-slate-100 bg-slate-50/60 px-3 py-2">
+                    <img src={stationImg(st.station)} alt="" className="h-12 w-20 rounded-md object-cover" />
                     <span className="rounded bg-[#FFED00] px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide text-slate-900">
                       {stationLabel(st.station)}
                     </span>
