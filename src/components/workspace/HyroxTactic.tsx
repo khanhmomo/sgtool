@@ -523,6 +523,15 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
   const [noteOpen, setNoteOpen] = useState<Set<string>>(new Set());
   const toggleNote = (k: string) =>
     setNoteOpen((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  // Mobile shift scroller — which shift card is currently snapped into view
+  const shiftScrollRef = useRef<HTMLDivElement>(null);
+  const [activeShift, setActiveShift] = useState(0);
+  const onShiftScroll = () => {
+    const el = shiftScrollRef.current;
+    if (!el || !el.firstElementChild) return;
+    const w = (el.firstElementChild as HTMLElement).offsetWidth + 12; // card + gap
+    if (w > 12) setActiveShift(Math.round(el.scrollLeft / w));
+  };
   // Break tables are indexed by shift — only show those whose shift still exists
   const breakHas = (si: number) =>
     si < shifts.length && BREAK_STATIONS.some((s) => (breaks[si]?.rows?.[s] || []).some(nonEmptyBreak));
@@ -544,7 +553,20 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
         </div>
       )}
       {/* Mobile: shifts scroll side-by-side; desktop (sm+) stacks as before */}
-      <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:block sm:snap-none sm:space-y-4 sm:overflow-visible sm:px-0 sm:pb-0">
+      {shifts.length > 1 && (
+        <p className="mb-2 rounded-md bg-[#FFED00] px-3 py-2 text-center text-sm font-black uppercase tracking-wider text-slate-900 sm:hidden">
+          {activeShift === 0
+            ? `⇠ Swipe to view Shift ${shifts.length > 2 ? "2" : shifts.length} ⇢`
+            : activeShift === shifts.length - 1
+              ? `⇠ Swipe to view Shift ${activeShift} ⇢`
+              : "⇠ Swipe to view another shift ⇢"}
+        </p>
+      )}
+      <div
+        ref={shiftScrollRef}
+        onScroll={onShiftScroll}
+        className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:block sm:snap-none sm:space-y-4 sm:overflow-visible sm:px-0 sm:pb-0"
+      >
       {shifts.map((allStations, si) => {
         const stations = allStations.filter(showStation);
         const active = stationFilter[si] || "ALL";
@@ -606,7 +628,7 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                             onClick={() => toggleNote(`${si}:${st.station}`)}
                             className="mt-0.5 block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-200"
                           >
-                            {noteOpen.has(`${si}:${st.station}`) ? "Hide note" : "Note"}
+                            {noteOpen.has(`${si}:${st.station}`) ? "Hide note" : "View note"}
                           </button>
                           {noteOpen.has(`${si}:${st.station}`) && (
                             <div className="mt-0.5 whitespace-normal text-[10px] font-normal text-slate-600"><Markdown text={st.note} /></div>
@@ -669,7 +691,7 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                         onClick={() => toggleNote(`m${si}:${st.station}`)}
                         className="ml-auto rounded bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500"
                       >
-                        {noteOpen.has(`m${si}:${st.station}`) ? "Hide note" : "Note"}
+                        {noteOpen.has(`m${si}:${st.station}`) ? "Hide note" : "View note"}
                       </button>
                     )}
                   </div>
