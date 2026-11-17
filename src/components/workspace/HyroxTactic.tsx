@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlarmClock, AlertTriangle, Aperture, BookOpen, Copy, Download, ExternalLink, Eye, EyeOff, Plus, Trash2, Users, X } from "lucide-react";
+import { AlarmClock, AlertTriangle, Aperture, BookOpen, ChevronDown, ChevronUp, Copy, Download, ExternalLink, Eye, EyeOff, Plus, Trash2, Users, X } from "lucide-react";
 import { Button, Card, CardHeader, Input, Select, Textarea } from "@/components/ui";
 import { cn, fmtDate, uid, dateRangeYmd } from "@/lib/utils";
 import Markdown from "@/components/Markdown";
@@ -50,28 +50,38 @@ type Fit = "green" | "yellow" | "red" | "na";
 /** A parsed lens: focal range + aperture info.
     Lenses slower than f/2.8 never count toward a station's coverage;
     lenses with no aperture written count but mark the cell uncertain ("!"). */
-interface LensInfo { min: number; max: number; fast: boolean; apKnown: boolean }
+interface LensInfo { min: number; max: number; fast: boolean; apKnown: boolean; ap?: number }
 
-/** Parse a lenses field like "16-35 f2.8, 70-200 f4, 50mm" into focal ranges */
+/** Parse a lenses field like "16-35 f2.8, 70-200 f4, 50mm" into focal ranges.
+    Handles space-separated lists too ("canonEF16-35 24-70 70-200"). */
 const lensRanges = (raw?: string): LensInfo[] =>
   (raw || "")
     // Separators: ",", ";", "/" before a letter (" / Canon") — never "f/2.8" —
     // or a spaced dash " — " between items (never "70-200" which has no spaces)
-    .split(/[,;]|\s*\/\s*(?=[A-Za-z])|\s+[—–-]\s+/)
-    .map((s) => {
-      const r = s.match(/(\d{2,4})\s*[-–~]\s*(\d{2,4})/);
-      const range: [number, number] | null = r
-        ? [Math.min(+r[1], +r[2]), Math.max(+r[1], +r[2])]
+    .split(/[,;\r\n]|\s*\/\s*(?=[A-Za-z])|\s+[—–-]\s+/)
+    .flatMap((s) => {
+      const ranges = [...s.matchAll(/(\d{2,4})\s*[-–~]\s*(\d{2,4})/g)];
+      if (ranges.length > 1) {
+        // Multiple lenses mashed into one item — aperture lives in the text
+        // after each range, up to the next range's start.
+        return ranges.map((r, i) => {
+          const seg = s.slice(r.index! + r[0].length, ranges[i + 1]?.index);
+          const ap = seg.match(/mm\s*f\/?(\d+(?:\.\d+)?)/i) || seg.match(/\bf\/?(\d+(?:\.\d+)?)/i) || seg.match(/\bf\s+(\d+\.\d+)/i) || seg.match(/\b(\d+\.\d+)\b/);
+          return { min: Math.min(+r[1], +r[2]), max: Math.max(+r[1], +r[2]), fast: !ap || +ap[1] <= 2.8, apKnown: !!ap, ap: ap ? +ap[1] : undefined } as LensInfo;
+        });
+      }
+      const range: [number, number] | null = ranges.length === 1
+        ? [Math.min(+ranges[0][1], +ranges[0][2]), Math.max(+ranges[0][1], +ranges[0][2])]
         : (() => {
             const p = s.match(/\d{2,3}/);
             return p ? [+p[0], +p[0]] as [number, number] : null;
           })();
       if (!range) return null;
-      // Aperture "f2.8" / "f/4" / "f3.5-5.6" — take the widest (lowest) value;
+      // Aperture "f2.8" / "f/4" / "mmF4" / "f3.5-5.6" — take the widest (lowest) value;
       // \bf keeps brand letters like "RF 16" or "EF 24-70" from matching.
       // A missing aperture can't be judged, so the lens still counts.
-      const ap = s.match(/\bf\/?(\d+(?:\.\d+)?)/i) || s.match(/\b(\d+\.\d+)\b/);
-      return { min: range[0], max: range[1], fast: !ap || +ap[1] <= 2.8, apKnown: !!ap };
+      const ap = s.match(/mm\s*f\/?(\d+(?:\.\d+)?)/i) || s.match(/\bf\/?(\d+(?:\.\d+)?)/i) || s.match(/\bf\s+(\d+\.\d+)/i) || s.match(/\b(\d+\.\d+)\b/);
+      return { min: range[0], max: range[1], fast: !ap || +ap[1] <= 2.8, apKnown: !!ap, ap: ap ? +ap[1] : undefined } as LensInfo;
     })
     .filter((x): x is LensInfo => !!x);
 
@@ -80,7 +90,7 @@ const hasFlash = (p?: Photographer) => !!p?.flashes?.trim() && !/^(no|none|n\/a|
 /** True when an f/2.8+ lens covers the [min,max] band — primes (min===max)
     count when they land inside it, zooms need real overlap. */
 const covers = (lenses: LensInfo[], min: number, max: number, fastOnly = true) =>
-  lenses.some((l) => (!fastOnly || l.fast) && (l.min === l.max ? l.min >= min && l.min <= max : l.min < max && l.max > min));
+  lenses.some((l) => (!fastOnly || l.fast) && l.min <= max && l.max >= min);
 
 /** Equipment fit for a station; `na` = no requirement / nothing to judge */
 function stationFit(station: string, lenses: LensInfo[], flash: boolean): Fit {
@@ -92,7 +102,13 @@ function stationFit(station: string, lenses: LensInfo[], flash: boolean): Fit {
   if (/burpee/i.test(s)) return "green";
   if (/skierg/i.test(s)) return wide(covers(lenses, 16, 28) ? "green" : "red");
   if (/sled\s*push|rowing/i.test(s)) return wide(covers(lenses, 16, 35) ? "green" : "red");
-  if (/sled\s*pull|sandbag/i.test(s)) return lenses.some((l) => l.fast && l.max >= 135) ? "green" : covers(lenses, 70, 135) ? "yellow" : "red";
+  if (/sled\s*pull/i.test(s)) {
+    // Green: a fast lens reaching ≥135mm; yellow: real telephoto overlap (70–135)
+    if (lenses.some((l) => l.fast && l.max >= 135)) return "green";
+    if (lenses.some((l) => l.fast && l.max > 70 && l.min <= 135)) return "yellow";
+    return "red";
+  }
+  if (/sandbag/i.test(s)) return lenses.some((l) => l.fast && l.max >= 135) ? "green" : covers(lenses, 70, 135) ? "yellow" : "red";
   if (/hero\s*wall/i.test(s)) {
     // Any aperture counts; needs 16–70mm coverage + a flash
     if (covers(lenses, 16, 70, false) && flash) return "green";
@@ -107,11 +123,30 @@ function stationFit(station: string, lenses: LensInfo[], flash: boolean): Fit {
   return "na";
 }
 
+/** The lens that determined a cell's rating (green/yellow), or null for red/na */
+function fitLens(station: string, lenses: LensInfo[]): LensInfo | null {
+  const s = normStation(station);
+  const pick = (pred: (l: LensInfo) => boolean) => lenses.find(pred) || null;
+  if (/burpee/i.test(s)) return lenses[0] || null;
+  if (/skierg/i.test(s)) return pick((l) => l.fast && l.min <= 28 && l.max >= 16) || pick((l) => l.fast && l.min < 16);
+  if (/sled\s*push|rowing/i.test(s)) return pick((l) => l.fast && l.min <= 35 && l.max >= 16) || pick((l) => l.fast && l.min < 16);
+  if (/sled\s*pull/i.test(s)) return pick((l) => l.fast && l.max >= 135) || pick((l) => l.fast && l.max > 70 && l.min <= 135);
+  if (/sandbag/i.test(s)) return pick((l) => l.fast && l.max >= 135) || pick((l) => l.fast && l.min <= 135 && l.max >= 70);
+  if (/hero\s*wall/i.test(s)) return pick((l) => l.min <= 70 && l.max >= 16) || pick((l) => l.min < 16);
+  if (/wall\s*ball|finish/i.test(s)) return pick((l) => l.fast && l.min <= 70 && l.max >= 16) || pick((l) => l.fast && l.min < 16);
+  return null;
+}
+
+const lensLabel = (l: LensInfo) =>
+  `${l.min === l.max ? l.min : `${l.min}–${l.max}`}mm${l.apKnown ? ` f/${l.ap}` : ""}`;
+
+
 /** Requirement note used in Station-fit tooltips */
 const FIT_HINT: [RegExp, string][] = [
   [/skierg/i, "needs 16–28mm f/2.8"],
   [/sled\s*push|rowing/i, "needs 16–35mm"],
-  [/sled\s*pull|sandbag/i, "needs ≥135mm f/2.8"],
+  [/sled\s*pull/i, "needs ≥135mm f/2.8"],
+  [/sandbag/i, "needs ≥135mm f/2.8"],
   [/burpee/i, "any lens"],
   [/farmers|ls\s*arch/i, "no requirement"],
   [/wall\s*ball/i, "needs 16–70mm"],
@@ -122,6 +157,16 @@ const fitHint = (s: string) => FIT_HINT.find(([re]) => re.test(s))?.[1] || "";
 /** Stations shown in the Station-fit table (SkiErg…Hero Wall, minus Farmers Carry/LS Arch) */
 const FIT_STATIONS = HYROX_STATIONS.slice(0, 10).filter((s) => !/farmers/i.test(s));
 
+/** Compact header labels for the Station-fit matrix */
+const FIT_SHORT: Record<string, string> = {
+  "SkiErg": "Ski",
+  "Sled Push": "Push",
+  "Sled Pull": "Pull",
+  "Sandbag Lunges": "Sandbag",
+  "Wall Ball": "Wall",
+  "Hero Wall": "Hero",
+};
+
 const FIT_CELL: Record<Fit, string> = {
   green: "bg-emerald-500",
   yellow: "bg-amber-400",
@@ -129,21 +174,21 @@ const FIT_CELL: Record<Fit, string> = {
   na: "bg-slate-200",
 };
 
-const equipList = (v?: string) => (v || "").split(/[,;]|\s*\/\s*(?=[A-Za-z])|\s+[—–-]\s+/).map((s) => s.trim()).filter(Boolean);
+const equipList = (v?: string) => (v || "").split(/[,;\r\n]|\s*\/\s*(?=[A-Za-z])|\s+[—–-]\s+/).map((s) => s.trim()).filter(Boolean);
 
 /** Station-fit matrix — photographers × stations, colored by lens/aperture fit.
     Used in the editor card and on the standalone /station-fit page. */
-export function StationFitTable({ photographers, withEquipment }: { photographers: Photographer[]; withEquipment?: boolean }) {
+export function StationFitTable({ photographers, withEquipment, fillCells }: { photographers: Photographer[]; withEquipment?: boolean; fillCells?: boolean }) {
   const [viewP, setViewP] = useState<Photographer | null>(null);
   return (
     <>
-      <table className="w-full border-collapse text-left text-xs">
+      <table className="w-full border-collapse text-left text-[11px]">
         <thead>
           <tr className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500">
-            <th className="border border-slate-200 px-2 py-1.5">Photographer</th>
+            <th className="border border-slate-200 px-1.5 py-1">Photographer</th>
             {FIT_STATIONS.map((st) => (
-              <th key={st} className="border border-slate-200 px-2 py-1.5 whitespace-nowrap">
-                {stationLabel(st)}
+              <th key={st} className={cn("border border-slate-200 px-1.5 py-1 whitespace-nowrap", fillCells && "w-24")}>
+                {fillCells ? normStation(st) : FIT_SHORT[st] || normStation(st)}
               </th>
             ))}
           </tr>
@@ -156,8 +201,8 @@ export function StationFitTable({ photographers, withEquipment }: { photographer
             const apUncertain = lenses.length > 0 && !lenses.some((l) => l.apKnown && l.fast);
             return (
               <tr key={p.id}>
-                <td className="border border-slate-200 px-2 py-1.5 whitespace-nowrap font-bold text-slate-900">
-                  <span className="inline-flex items-center gap-1.5">
+                <td className="border border-slate-200 px-1.5 py-1 whitespace-nowrap font-bold text-slate-900">
+                  <span className="inline-flex items-center gap-1">
                     {p.acronym || p.name}
                     {withEquipment && (
                       <button
@@ -173,17 +218,29 @@ export function StationFitTable({ photographers, withEquipment }: { photographer
                 </td>
                 {FIT_STATIONS.map((st) => {
                   const fit: Fit = lenses.length === 0 ? "na" : stationFit(st, lenses, flash);
+                  const fitLensUsed = fit !== "red" && fit !== "na" ? fitLens(st, lenses) : null;
+                  const tip = `${p.acronym || p.name} · ${st} (${fitHint(st)}): ${fitLensUsed ? lensLabel(fitLensUsed) : fit === "red" || fit === "na" ? "no lens" : lenses.length ? p.lenses : "no lens data"}${/finish|hero\s*wall/i.test(st) ? ` · flash: ${flash ? "yes" : "no"}` : ""}${apUncertain ? " — aperture unknown, f/2.8 not confirmed" : ""}`;
                   return (
-                    <td key={st} className="border border-slate-200 px-2 py-1.5 text-center">
-                      <span className="inline-flex items-center gap-0.5">
-                        <span
-                          className={cn("inline-block h-3.5 w-3.5 rounded-sm", FIT_CELL[fit])}
-                          title={`${p.acronym || p.name} · ${st} (${fitHint(st)}): ${lenses.length ? p.lenses : "no lens data"}${st === "Finish" ? ` · flash: ${flash ? "yes" : "no"}` : ""}${apUncertain ? " — aperture unknown, f/2.8 not confirmed" : ""}`}
-                        />
-                        {apUncertain && fit !== "na" && fit !== "red" && (
-                          <span className="text-[10px] font-black leading-none text-amber-500" title="Aperture unknown — f/2.8 not confirmed">!</span>
-                        )}
-                      </span>
+                    <td
+                      key={st}
+                      className={cn("border border-slate-200 px-1.5 py-1 text-center", fillCells && `h-7 w-24 ${FIT_CELL[fit]}`)}
+                      title={tip}
+                    >
+                      {fillCells ? (
+                        apUncertain && fit !== "na" && fit !== "red" && (
+                          <span className="text-[10px] font-black leading-none text-white/90" title="Aperture unknown — f/2.8 not confirmed">!</span>
+                        )
+                      ) : (
+                        <span className="inline-flex items-center gap-0.5">
+                          <span
+                            className={cn("inline-block h-3 w-3 rounded-sm", FIT_CELL[fit])}
+                            title={tip}
+                          />
+                          {apUncertain && fit !== "na" && fit !== "red" && (
+                            <span className="text-[10px] font-black leading-none text-amber-500" title="Aperture unknown — f/2.8 not confirmed">!</span>
+                          )}
+                        </span>
+                      )}
                     </td>
                   );
                 })}
@@ -988,6 +1045,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   // tap a cell to drop it. Reuses dragSrcRef + dropName for move/dedupe.
   type CellSrc = { si: number; sti: number; key: "photographers" | "cover" | "ls" };
   const [picked, setPicked] = useState<{ name: string; src: CellSrc | null } | null>(null);
+  const [fitOpen, setFitOpen] = useState(true);
   const sameSrc = (a: CellSrc | null, b: CellSrc | null) =>
     a?.si === b?.si && a?.sti === b?.sti && a?.key === b?.key;
   const tapPick = (name: string, src: CellSrc | null) =>
@@ -1154,22 +1212,36 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
           title="Station fit"
           icon={<AlertTriangle size={15} className="text-blue-600" />}
           action={
-            <a
-              href={`/events/${event.id}/station-fit`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
-            >
-              <ExternalLink size={13} /> View in new tab
-            </a>
+            <div className="flex items-center gap-1">
+              <a
+                href={`/events/${event.id}/station-fit`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50"
+              >
+                <ExternalLink size={13} /> View in new tab
+              </a>
+              <button
+                type="button"
+                onClick={() => setFitOpen((v) => !v)}
+                title={fitOpen ? "Collapse" : "Expand"}
+                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                {fitOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              </button>
+            </div>
           }
         />
-        <p className="border-b border-slate-100 px-4 py-1.5 text-[10px] text-slate-400">
-          Green = covers the station at f/2.8 · yellow = partial fit · red = not covered or slower than f/2.8 · grey = no requirement or no lens data · ! = aperture unknown (f/2.8 unconfirmed)
-        </p>
-        <div className="overflow-x-auto">
-          <StationFitTable photographers={event.photographers} />
-        </div>
+        {fitOpen && (
+          <>
+            <p className="border-b border-slate-100 px-4 py-1.5 text-[10px] text-slate-400">
+              Green = covers the station at f/2.8 · yellow = partial fit · red = not covered or slower than f/2.8 · grey = no requirement or no lens data · ! = aperture unknown (f/2.8 unconfirmed)
+            </p>
+            <div className="overflow-x-auto">
+              <StationFitTable photographers={event.photographers} />
+            </div>
+          </>
+        )}
       </Card>
       <div className="flex flex-col gap-4 md:flex-row md:items-start">
       <div key={activeDate} className="min-w-0 flex-1 space-y-4">

@@ -27,7 +27,7 @@ export default async function StationFitPage(props: { params: Promise<{ id: stri
         Green = covers the station at f/2.8 · yellow = partial fit · red = not covered or slower than f/2.8 · grey = no requirement or no lens data · ! = aperture unknown (f/2.8 unconfirmed)
       </p>
       <div className="inline-block max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-        <StationFitTable photographers={dto.photographers} withEquipment />
+        <StationFitTable photographers={dto.photographers} withEquipment fillCells />
       </div>
     </div>
   );

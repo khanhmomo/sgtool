@@ -775,9 +775,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
             Sportograf TL Tool · Powered by KTPROD Technology
           </p>
           <p className="mx-auto mt-1.5 max-w-xs text-[10px] leading-relaxed text-slate-400/80">
-            This tool is developed independently and is not a part of the official
-            Sportograf system. For anything related to Sportograf, please contact
-            the office.
+            This is an independent, non-profit project and is not affiliated with or part of the official Sportograf system. Not intended for commercial use. For official Sportograf matters, please contact the Sportograf office.
           </p>
         </footer>
         </div>

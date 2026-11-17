@@ -18,7 +18,7 @@ export default function TeamTab({ event, patch }: TabProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   /** CSV equipment cells are ", "-separated lists (e.g. "A9III, A1") */
-  const equipItems = (s?: string) => (s || "").split(/[,;]|\s*\/\s*(?=[A-Za-z])|\s+[—–-]\s+/).map((x) => x.trim()).filter(Boolean);
+  const equipItems = (s?: string) => (s || "").split(/[,;\r\n]|\s*\/\s*(?=[A-Za-z])|\s+[—–-]\s+/).map((x) => x.trim()).filter(Boolean);
 
   /** "Sony 24-70 f/2.8 GM mark II" → "24-70 f/2.8" — strip brand + marketing suffixes */
   const shortLens = (s: string): string => {
