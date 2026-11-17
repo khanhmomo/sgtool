@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import { Event, User } from "@/lib/models";
 import { requireUser } from "@/auth";
 import { serializeEvent } from "@/lib/serialize";
+import { deleteEventFiles } from "@/lib/files";
 
 // Whitelisted top-level fields that PATCH may update.
 const PATCHABLE = new Set([
@@ -85,7 +86,10 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   const delFilter: Record<string, unknown> = { _id: id };
   if (user.role !== "admin") delFilter.ownerId = user.id;
+  await connectDB();
   const res = await Event.deleteOne(delFilter);
   if (!res.deletedCount) return NextResponse.json({ error: "Event not found" }, { status: 404 });
+  // Remove all attached files (maps, scouting photos, …) from storage too
+  await deleteEventFiles(id);
   return NextResponse.json({ ok: true });
 }

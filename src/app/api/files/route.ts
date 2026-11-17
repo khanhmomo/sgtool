@@ -35,13 +35,19 @@ export async function POST(req: Request) {
   const eventId = String(form?.get("eventId") || "");
   const templateId = String(form?.get("templateId") || "");
   const category = String(form?.get("category") || "other");
+  const hidden = form?.get("hidden") === "1";
   const description = String(form?.get("description") || "");
 
   await connectDB();
 
   // Ownership check on the parent entity
   if (eventId) {
-    const ev = await Event.findOne({ _id: eventId, ownerId: user.id }).select("_id");
+    // Owner, a co-leader (teamLeaders), or an admin may attach files to the event
+    const filter: Record<string, unknown> = { _id: eventId };
+    if (user.role !== "admin") {
+      filter.$or = [{ ownerId: user.id }, { teamLeaders: user.id }];
+    }
+    const ev = await Event.findOne(filter).select("_id");
     if (!ev) return NextResponse.json({ error: "Event not found" }, { status: 404 });
   } else if (templateId) {
     const tp = await Template.findOne({ _id: templateId, ownerId: user.id }).select("_id");
@@ -66,10 +72,11 @@ export async function POST(req: Request) {
     filename: stored.filename,
     mime: stored.mime,
     size: stored.size,
-    category: ["map", "briefing", "venue", "hotel", "other"].includes(category)
+    category: ["map", "briefing", "venue", "hotel", "scouting", "other"].includes(category)
       ? category
       : "other",
     description,
+    hidden,
     uploadedBy: user.acronym,
   });
 

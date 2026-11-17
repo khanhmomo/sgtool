@@ -17,6 +17,7 @@ import {
   Crosshair,
   ListChecks,
   CircleAlert,
+  ImagePlus,
 } from "lucide-react";
 import {
   Badge,
@@ -282,8 +283,41 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
       mapLink: lat !== undefined && lng !== undefined ? spotMapUrl(lat, lng) : "",
       notes: "",
       status: "draft",
+      images: [],
       __isNew: true,
     };
+  }
+
+  const [uploadingImgs, setUploadingImgs] = useState(false);
+  const imgInputRef = useRef<HTMLInputElement>(null);
+
+  /** Upload scouting photos → hidden event files; URLs stored on the position */
+  async function uploadSpotImages(files: FileList | null) {
+    if (!files?.length || !editing) return;
+    setUploadingImgs(true);
+    setResolveError("");
+    try {
+      for (const f of Array.from(files)) {
+        const fd = new FormData();
+        fd.append("file", f);
+        fd.append("eventId", event.id);
+        fd.append("category", "scouting");
+        fd.append("hidden", "1");
+        fd.append("description", editing.photographer || editing.id);
+        const res = await fetch("/api/files", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) {
+          setResolveError(data.error || "Image upload failed.");
+          continue;
+        }
+        setEditing((cur) =>
+          cur ? { ...cur, images: [...(cur.images || []), data.file.url] } : cur
+        );
+      }
+    } finally {
+      setUploadingImgs(false);
+      if (imgInputRef.current) imgInputRef.current.value = "";
+    }
   }
 
   /** Paste a maps link → try local extraction, else ask the server to resolve it */
@@ -704,6 +738,11 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
                 <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-slate-400">
                   {p.lat !== null && p.lng !== null ? `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}` : "no coords"}
                 </span>
+                {(p.images?.length ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                    <ImagePlus size={10} /> {p.images!.length}
+                  </span>
+                )}
                 {p.status === "confirmed" ? (
                   <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700">confirmed</Badge>
                 ) : (
@@ -947,6 +986,52 @@ export default function CourseTab({ event, patch, saving }: TabProps) {
                   onChange={(e) => setEditing({ ...editing, notes: e.target.value })}
                   placeholder="Stand at bridge exit, shoot towards skyline"
                 />
+              </Field>
+              <Field label="Scouting photos">
+                <div className="flex flex-wrap items-center gap-2">
+                  {(editing.images || []).map((url) => (
+                    <div key={url} className="group relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={url}
+                        alt="Scouting"
+                        className="h-16 w-16 rounded-md border border-slate-200 object-cover"
+                      />
+                      <button
+                        title="Remove photo"
+                        onClick={() =>
+                          setEditing({
+                            ...editing,
+                            images: (editing.images || []).filter((u) => u !== url),
+                          })
+                        }
+                        className="absolute -right-1.5 -top-1.5 rounded-full bg-slate-900 p-0.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ))}
+                  <input
+                    ref={imgInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => uploadSpotImages(e.target.files)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => imgInputRef.current?.click()}
+                    disabled={uploadingImgs}
+                    className="flex h-16 w-16 items-center justify-center rounded-md border border-dashed border-slate-300 text-slate-400 transition-colors hover:border-blue-400 hover:text-blue-600 disabled:opacity-50"
+                  >
+                    <ImagePlus size={18} />
+                  </button>
+                  {uploadingImgs && <span className="text-[11px] text-blue-600">Uploading…</span>}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  Photos from course scouting — internal only, not shown to photographers.
+                </p>
               </Field>
               <Field label="Status">
                 <Select

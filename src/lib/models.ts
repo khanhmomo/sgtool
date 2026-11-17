@@ -98,7 +98,7 @@ const FileSchema = new Schema(
     size: { type: Number, default: 0 },
     category: {
       type: String,
-      enum: ["map", "briefing", "venue", "hotel", "other"],
+      enum: ["map", "briefing", "venue", "hotel", "scouting", "other"],
       default: "other",
     },
     description: { type: String, default: "" },

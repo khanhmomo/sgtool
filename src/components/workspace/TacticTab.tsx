@@ -73,6 +73,7 @@ function ironmanSkeleton(): TacticRow[] {
     photographer: "",
     lens: "",
     arrival: "",
+    finish: "",
     mapLink: "",
     note: "",
     color: "",
@@ -93,6 +94,7 @@ function fitnessIndoorSkeleton(): TacticRow[] {
     photographer: "",
     lens: "",
     arrival: "",
+    finish: "",
     mapLink: "",
     note: "",
     color: "",
@@ -106,6 +108,7 @@ const newRow = (spot = ""): TacticRow => ({
   photographer: "",
   lens: "",
   arrival: "",
+  finish: "",
   mapLink: "",
   note: "",
   color: "",
@@ -804,6 +807,7 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                     {isFitnessIndoor && <th className="px-3 py-2 w-16">LS</th>}
                     <th className="px-3 py-2">Camera lens</th>
                     {!isFitnessIndoor && <th className="px-3 py-2">Arrival</th>}
+                    {!isFitnessIndoor && <th className="px-3 py-2">Finish</th>}
                     <th className="px-3 py-2">Note</th>
                     <th className="px-2 py-2 w-10"></th>
                   </tr>
@@ -1065,6 +1069,16 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                               type="time"
                               value={to24(r.arrival)}
                               onChange={(e) => update(r.id, "arrival", from24(e.target.value))}
+                              className="h-9 w-28 px-2 text-xs"
+                            />
+                          </td>
+                        )}
+                        {!isFitnessIndoor && (
+                          <td className="px-3 py-2">
+                            <Input
+                              type="time"
+                              value={to24(r.finish || "")}
+                              onChange={(e) => update(r.id, "finish", from24(e.target.value))}
                               className="h-9 w-28 px-2 text-xs"
                             />
                           </td>

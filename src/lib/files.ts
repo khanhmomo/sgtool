@@ -17,6 +17,18 @@ async function removeStoredObject(url: string) {
 }
 
 /**
+ * Delete every FileDoc attached to an event — stored objects (blob/local)
+ * plus metadata. Call after the event itself is deleted.
+ */
+export async function deleteEventFiles(eventId: string): Promise<number> {
+  const docs = await FileDoc.find({ eventId }).select("_id url").lean();
+  if (!docs.length) return 0;
+  await Promise.all(docs.map((d) => removeStoredObject(d.url)));
+  await FileDoc.deleteMany({ _id: { $in: docs.map((d) => d._id) } });
+  return docs.length;
+}
+
+/**
  * Remove an owner's FileDocs that aren't attached to anything:
  * no eventId/templateId at all, or references to deleted events/templates.
  * Also deletes their stored objects. Returns how many docs were purged.

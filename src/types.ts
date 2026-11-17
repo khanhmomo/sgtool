@@ -4,7 +4,7 @@
 export type EventStatus = "planning" | "ready" | "live" | "completed" | "archived";
 export type Sport = "swim" | "bike" | "run" | "other";
 export type DocCategory = "briefing" | "tactic" | "guide" | "checklist" | "note" | "other";
-export type FileCategory = "map" | "briefing" | "venue" | "hotel" | "other";
+export type FileCategory = "map" | "briefing" | "venue" | "hotel" | "scouting" | "other";
 export type PositionStatus = "draft" | "confirmed";
 
 export interface VenueInfo {
@@ -102,6 +102,8 @@ export interface Position {
   mapLink: string;
   notes: string;
   status: PositionStatus;
+  /** Scouting photo URLs (uploaded via Files, hidden from the public page) */
+  images?: string[];
 }
 
 export interface PreSpot {
@@ -119,6 +121,7 @@ export interface TacticRow {
   ls: string; // light-system crew assigned to this spot — comma-separated acronyms
   lens: string; // preferred camera lens, e.g. "70-200"
   arrival: string; // e.g. "7:00 AM"
+  finish?: string; // e.g. "9:30 AM" — when the spot is done, time to move on
   mapLink: string; // GPS / map location link
   note: string; // e.g. "Setup LS if available…"
   color: string; // row background color, hex e.g. "#fef3c7"

@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db";
 import { User } from "@/lib/models";
 import { requireAdmin } from "@/auth";
 import { serializeUser } from "@/lib/serialize";
+import { purgeOrphanFiles } from "@/lib/files";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -94,5 +95,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   await connectDB();
   const res = await User.deleteOne({ _id: id });
   if (!res.deletedCount) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  // Remove their unattached/orphaned files from storage (files on live events stay)
+  await purgeOrphanFiles(id);
   return NextResponse.json({ ok: true });
 }

@@ -2,11 +2,20 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
 import { connectDB } from "@/lib/db";
-import { FileDoc } from "@/lib/models";
+import { Event, FileDoc } from "@/lib/models";
 import { serializeFile } from "@/lib/serialize";
 import { requireUser } from "@/auth";
 
 type Ctx = { params: Promise<{ id: string }> };
+
+/** Owner of the file, a co-leader of its event, or an admin. */
+async function canManage(user: { id: string; role?: string }, doc: { ownerId: unknown; eventId?: unknown }) {
+  if (user.role === "admin") return true;
+  if (String(doc.ownerId) === String(user.id)) return true;
+  if (!doc.eventId) return false;
+  const ev = await Event.findById(doc.eventId).select("teamLeaders").lean();
+  return !!ev && (ev.teamLeaders || []).some((t: unknown) => String(t) === String(user.id));
+}
 
 export async function PATCH(req: Request, ctx: Ctx) {
   const user = await requireUser();
@@ -15,8 +24,10 @@ export async function PATCH(req: Request, ctx: Ctx) {
   const body = await req.json().catch(() => ({}));
 
   await connectDB();
-  const doc = await FileDoc.findOne({ _id: id, ownerId: user.id });
-  if (!doc) return NextResponse.json({ error: "File not found" }, { status: 404 });
+  const doc = await FileDoc.findById(id);
+  if (!doc || !(await canManage(user, doc))) {
+    return NextResponse.json({ error: "File not found" }, { status: 404 });
+  }
 
   if (typeof body.hidden === "boolean") doc.hidden = body.hidden;
   if (typeof body.description === "string") doc.description = body.description;
@@ -31,8 +42,10 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
 
   await connectDB();
-  const doc = await FileDoc.findOne({ _id: id, ownerId: user.id });
-  if (!doc) return NextResponse.json({ error: "File not found" }, { status: 404 });
+  const doc = await FileDoc.findById(id);
+  if (!doc || !(await canManage(user, doc))) {
+    return NextResponse.json({ error: "File not found" }, { status: 404 });
+  }
 
   // Best-effort removal of the stored object
   try {

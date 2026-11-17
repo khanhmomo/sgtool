@@ -23,6 +23,7 @@ const CATS: { value: FileCategory; label: string }[] = [
   { value: "briefing", label: "Briefing" },
   { value: "venue", label: "Venue" },
   { value: "hotel", label: "Hotel" },
+  { value: "scouting", label: "Scouting" },
   { value: "other", label: "Other" },
 ];
 

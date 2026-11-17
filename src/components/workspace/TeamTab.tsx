@@ -92,30 +92,42 @@ export default function TeamTab({ event, patch }: TabProps) {
       return;
     }
 
-    const existing = new Set(team.map((p) => p.acronym.toUpperCase()));
+    // Dedupe key → member acronym. A row is a duplicate when its acronym, full
+    // name, or email already belongs to someone on the roster — covers members
+    // added manually with a blank/different acronym.
+    const normKey = (s: string) => s.trim().toUpperCase().replace(/\s+/g, " ");
+    const existing = new Map<string, string>();
+    for (const p of team) {
+      const keys = [normKey(p.acronym), normKey(p.name || ""), (p.email || "").trim().toLowerCase()].filter(Boolean);
+      for (const k of keys) if (!existing.has(k)) existing.set(k, p.acronym);
+    }
     const added: Photographer[] = [];
     const equipPatch = new Map<string, Pick<Photographer, "cameras" | "lenses" | "flashes" | "remoteCamera">>();
     let skipped = 0;
     for (const line of lines.slice(1)) {
       const cells = splitLine(line, sep);
-      const acronym = (cells[iAcr] || "").toUpperCase();
+      const acronym = normKey(cells[iAcr] || "");
       if (!acronym) continue;
+      const name = [iFirst >= 0 ? cells[iFirst] : "", iLast >= 0 ? cells[iLast] : ""]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      const email = (iEmail >= 0 ? cells[iEmail] || "" : "").trim().toLowerCase();
       const equip = {
         cameras: iCameras >= 0 ? cells[iCameras] || "" : "",
         lenses: iLenses >= 0 ? cells[iLenses] || "" : "",
         flashes: iFlashes >= 0 ? cells[iFlashes] || "" : "",
         remoteCamera: iRemote >= 0 ? cells[iRemote] || "" : "",
       };
-      // Duplicate acronym — merge equipment into the existing member instead of dropping it
-      if (existing.has(acronym)) {
-        if (equip.cameras || equip.lenses || equip.flashes || equip.remoteCamera) equipPatch.set(acronym, equip);
+      // Duplicate member — merge equipment into the existing row instead of adding again
+      const rowKeys = [acronym, normKey(name), email].filter(Boolean);
+      const dupKey = rowKeys.find((k) => existing.has(k));
+      if (dupKey !== undefined) {
+        const target = normKey(existing.get(dupKey) || "");
+        if (target && (equip.cameras || equip.lenses || equip.flashes || equip.remoteCamera)) equipPatch.set(target, equip);
         else skipped++;
         continue;
       }
-      const name = [iFirst >= 0 ? cells[iFirst] : "", iLast >= 0 ? cells[iLast] : ""]
-        .filter(Boolean)
-        .join(" ")
-        .trim();
       added.push({
         id: uid(),
         acronym,
@@ -125,17 +137,20 @@ export default function TeamTab({ event, patch }: TabProps) {
         lenses: iLenses >= 0 ? cells[iLenses] || "" : "",
         flashes: iFlashes >= 0 ? cells[iFlashes] || "" : "",
         remoteCamera: iRemote >= 0 ? cells[iRemote] || "" : "",
-        email: iEmail >= 0 ? cells[iEmail] || "" : "",
+        email,
         role: "Photographer",
         vehicle: "",
         notes: "",
       });
-      existing.add(acronym);
+      for (const k of [acronym, normKey(name), email].filter(Boolean)) existing.set(k, acronym);
     }
 
     if (added.length || equipPatch.size) {
       setTeam((t) => [
-        ...t.map((p) => equipPatch.get(p.acronym.toUpperCase()) ? { ...p, ...equipPatch.get(p.acronym.toUpperCase()) } : p),
+        ...t.map((p) => {
+          const eq = equipPatch.get(normKey(p.acronym));
+          return eq ? { ...p, ...eq } : p;
+        }),
         ...added,
       ]);
     }

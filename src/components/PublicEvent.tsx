@@ -72,10 +72,10 @@ function Section({
       <Card className="overflow-hidden">
         <button
           onClick={() => setOpen((o) => !o)}
-          className="flex w-full items-center gap-2 px-4 py-3 text-left"
+          className="flex w-full items-center gap-2 px-4 py-3 text-left lg:px-5"
         >
-          <span className="text-blue-600">{icon}</span>
-          <h2 className="flex-1 text-sm font-bold uppercase tracking-wide text-slate-900">
+          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50 text-blue-600">{icon}</span>
+          <h2 className="flex-1 text-sm font-bold uppercase tracking-wide text-slate-900 lg:text-[15px]">
             {title}
           </h2>
           <ChevronDown
@@ -83,7 +83,7 @@ function Section({
             className={cn("text-slate-400 transition-transform", !open && "-rotate-90")}
           />
         </button>
-        {open && <div className="border-t border-slate-100 px-4 py-3">{children}</div>}
+        {open && <div className="border-t border-slate-100 px-4 py-3 lg:px-5 lg:py-4">{children}</div>}
       </Card>
     </section>
   );
@@ -188,6 +188,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   const [clockOpen, setClockOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
 
+
   // Event-local timezone: venue map-link coords → first spot coords.
   // Short links (maps.app.goo.gl) hide coords client-side — resolve via API.
   const [venueCoords, setVenueCoords] = useState<ParsedCoords | null>(null);
@@ -275,8 +276,8 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   return (
     <div className="min-h-screen bg-slate-50 pb-16">
       {/* Header */}
-      <header className="border-b-4 border-blue-600 bg-slate-950 px-4 py-5 text-white">
-        <div className="mx-auto max-w-2xl lg:max-w-5xl">
+      <header className="border-b-4 border-blue-600 bg-gradient-to-b from-slate-950 to-slate-900 px-4 py-5 text-white lg:py-9">
+        <div className="mx-auto max-w-2xl lg:max-w-none lg:px-6">
           <div className="flex items-center gap-2">
             <Image src="/logo.png" alt="Sportograf" width={28} height={28} className="h-7 w-7 rounded-md object-contain" />
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
@@ -287,31 +288,31 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
               {st.label}
             </Badge>
           </div>
-          <h1 className="mt-3 text-xl font-bold leading-tight md:text-2xl">{event.name}</h1>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-300">
-            <span className="flex items-center gap-1.5">
+          <h1 className="mt-3 text-xl font-bold leading-tight md:text-2xl lg:mt-4 lg:text-4xl lg:font-black lg:tracking-tight">{event.name}</h1>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-300 lg:mt-4 lg:gap-2">
+            <span className="flex items-center gap-1.5 lg:rounded-full lg:bg-white/10 lg:px-3.5 lg:py-1.5">
               <CalendarClock size={13} className="text-blue-400" />
               {fmtDate(event.date)}
               {event.endDate && event.endDate !== event.date ? ` – ${fmtDate(event.endDate)}` : ""}
             </span>
             {(event.location || event.country) && (
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 lg:rounded-full lg:bg-white/10 lg:px-3.5 lg:py-1.5">
                 <MapPin size={13} className="text-blue-400" />
                 {[event.location, event.country].filter(Boolean).join(", ")}
               </span>
             )}
-            <span className="text-slate-400">TL: {[event.ownerAcronym, ...(event.teamLeaderInfos || []).map((t) => t.acronym)].filter(Boolean).join(" · ")}</span>
+            <span className="text-slate-400 lg:rounded-full lg:bg-white/10 lg:px-3.5 lg:py-1.5">TL: {[event.ownerAcronym, ...(event.teamLeaderInfos || []).map((t) => t.acronym)].filter(Boolean).join(" · ")}</span>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               onClick={() => setReqOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500"
+              className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500 lg:px-4 lg:py-2.5 lg:text-sm"
             >
               <MessageSquarePlus size={14} /> Make request
             </button>
             <button
               onClick={() => { setNow(new Date()); setClockOpen(true); }}
-              className="inline-flex items-center gap-1.5 rounded-md bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700"
+              className="inline-flex items-center gap-1.5 rounded-md bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700 lg:px-4 lg:py-2.5 lg:text-sm"
             >
               <Timer size={14} /> Camera check
             </button>
@@ -322,7 +323,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
       {/* Sticky quick nav */}
       {nav.length > 0 && (
         <nav className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-          <div className="mx-auto flex max-w-2xl gap-1 overflow-x-auto px-3 py-2 lg:max-w-5xl">
+          <div className="mx-auto flex w-full max-w-2xl gap-1 overflow-x-auto px-3 py-2 lg:max-w-none">
             {nav.map((n) => {
               const Icon = n.icon;
               return (
@@ -340,7 +341,8 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         </nav>
       )}
 
-      <main className="mx-auto max-w-2xl space-y-3 px-3 pt-4 lg:max-w-5xl lg:space-y-4 lg:px-6 lg:pt-6">
+      <main className="mx-auto max-w-2xl px-3 pt-4 lg:max-w-none lg:px-8 lg:pt-6">
+<div className="space-y-3 lg:space-y-4">
         {/* Critical notes banner */}
         {event.notes && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
@@ -352,15 +354,15 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         )}
 
         {/* Venue — full width on desktop */}
-        <div className="grid gap-3 lg:grid-cols-2 lg:gap-4">
+        <div className="grid gap-3 lg:grid-cols-[repeat(auto-fit,minmax(28rem,1fr))] lg:gap-4">
         {/* Venue */}
         {(event.venue.name || event.venue.meetingPoint) && (
-          <Section id="venue" icon={<MapPin size={16} />} title="Venue" className="lg:col-span-2">
+          <Section id="venue" icon={<MapPin size={16} />} title="Venue">
             <div className="space-y-2.5">
-              {event.venue.name && <p className="text-base font-bold text-slate-900">{event.venue.name}</p>}
+              {event.venue.name && <p className="text-base font-bold text-slate-900 lg:text-lg">{event.venue.name}</p>}
               <KV label="Address">{event.venue.address}</KV>
               <MapLink url={event.venue.mapLink} label="Open venue in Maps" />
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                 <KV label="Meeting point">{event.venue.meetingPoint}</KV>
                 <KV label="Entrance">{event.venue.entrance}</KV>
                 <KV label="Parking">{event.venue.parking}</KV>
@@ -376,7 +378,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
 
         {/* Briefing */}
         {event.briefing?.trim() && (
-          <Section id="briefing" icon={<Megaphone size={16} />} title="Briefing" className="lg:col-span-2">
+          <Section id="briefing" icon={<Megaphone size={16} />} title="Briefing">
             <Markdown text={event.briefing} />
           </Section>
         )}
@@ -591,7 +593,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         {/* Files */}
         {files.length > 0 && (
           <Section id="files" icon={<FolderOpen size={16} />} title="Files">
-            <div className="space-y-2">
+            <div className="grid gap-2 lg:grid-cols-2">
               {files.map((f) => {
                 const isImg = isImageMime(f.mime);
                 const isPdf = isPdfMime(f.mime);
@@ -647,15 +649,15 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
         )}
 
         {/* Hotel + Team — full width, stacked */}
-        <div className="grid gap-3 lg:grid-cols-2 lg:gap-4">
+        <div className="grid gap-3 lg:grid-cols-[repeat(auto-fit,minmax(28rem,1fr))] lg:gap-4">
         {/* Hotels */}
         {event.hotels.some((ht) => ht.name) && (
-          <Section id="hotel" icon={<BedDouble size={16} />} title={event.hotels.length > 1 ? "Hotels" : "Hotel"} className="lg:col-span-2">
-            <div className="space-y-5">
+          <Section id="hotel" icon={<BedDouble size={16} />} title={event.hotels.length > 1 ? "Hotels" : "Hotel"}>
+            <div className="grid gap-5 lg:grid-cols-[repeat(auto-fit,minmax(20rem,1fr))]">
               {event.hotels.filter((ht) => ht.name).map((hotel, i) => (
-                <div key={i} className="space-y-2.5">
-                  {event.hotels.length > 1 && i > 0 && <hr className="border-slate-200" />}
-                  <p className="text-base font-bold text-slate-900">{hotel.name}</p>
+                <div key={i} className="space-y-2.5 lg:rounded-lg lg:border lg:border-slate-200 lg:p-4">
+                  {event.hotels.length > 1 && i > 0 && <hr className="border-slate-200 lg:hidden" />}
+                  <p className="text-base font-bold text-slate-900 lg:text-lg">{hotel.name}</p>
                   <KV label="Address">{hotel.address}</KV>
                   <MapLink url={hotel.mapLink} label="Open hotel in Maps" />
                   <div className="grid grid-cols-2 gap-2.5">
@@ -710,8 +712,8 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
 
         {/* Team */}
         {event.photographers.length > 0 && (
-          <Section id="team" icon={<Camera size={16} />} title="Team" defaultOpen={false} className="lg:col-span-2">
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Section id="team" icon={<Camera size={16} />} title="Team" defaultOpen={false}>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {event.photographers.map((p) => (
                 <div key={p.id} className="flex items-center gap-2.5 rounded-md border border-slate-200 px-3 py-2">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[10px] font-bold text-white">
@@ -740,7 +742,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                 View on sportograf.com
               </a>
             </p>
-            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4">
+            <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
               {event.bestof.images.slice(0, PREVIEW_COUNT).map((src, i) => (
                 <button
                   key={i}
@@ -778,6 +780,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
             the office.
           </p>
         </footer>
+        </div>
       </main>
 
       {pdf && <PdfViewer file={pdf} onClose={() => setPdf(null)} />}
@@ -915,7 +918,9 @@ function TacticSpotTable({
   event: EventDTO;
   isFitnessIndoor: boolean;
 }) {
+  const [spotViewer, setSpotViewer] = useState<{ files: FileDTO[]; index: number } | null>(null);
   return (
+    <>
             <div className="overflow-x-auto rounded-md border border-slate-200">
               <table className="w-full text-left text-xs">
                 <thead>
@@ -925,6 +930,7 @@ function TacticSpotTable({
                     {isFitnessIndoor && <th className="px-3 py-2">LS</th>}
                     <th className="px-3 py-2">Lens</th>
                     {!isFitnessIndoor && <th className="px-3 py-2">Arrival</th>}
+                    {!isFitnessIndoor && <th className="px-3 py-2">Finish</th>}
                     {!isFitnessIndoor && <th className="px-3 py-2">Location</th>}
                     <th className="px-3 py-2">Note</th>
                   </tr>
@@ -960,16 +966,16 @@ function TacticSpotTable({
                         <td className="min-w-28 max-w-44 px-3 py-2 font-bold text-slate-900" style={fgStyle}>
                           <span className="break-words">{r.spot}</span>
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="min-w-48 px-3 py-2">
                           {mates.length ? (
-                            <div className="flex flex-wrap items-center gap-1.5">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                               {mates.map(({ a, p }) => (
-                                <span key={a} className="inline-flex items-center">
+                                <span key={a} className="inline-flex items-center whitespace-nowrap">
                                   <span className="inline-flex h-5 min-w-10 items-center justify-center rounded bg-slate-900 px-1.5 text-[11px] font-bold text-white">
                                     {a}
                                   </span>
                                   {p?.name && (
-                                    <span className="ml-1 font-bold text-slate-900" style={fgStyle}>{p.name}</span>
+                                    <span className="ml-1.5 font-bold text-slate-900" style={fgStyle}>{p.name}</span>
                                   )}
                                 </span>
                               ))}
@@ -1003,19 +1009,50 @@ function TacticSpotTable({
                           </td>
                         )}
                         {!isFitnessIndoor && (
+                          <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900" style={fgStyle}>
+                            {r.finish || "—"}
+                          </td>
+                        )}
+                        {!isFitnessIndoor && (
                           <td className="px-3 py-2">
-                            {link ? (
-                              <a
-                                href={link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-[11px] font-bold text-white hover:bg-slate-700"
-                              >
-                                <Navigation size={11} /> Maps
-                              </a>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {link ? (
+                                <a
+                                  href={link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-[11px] font-bold text-white hover:bg-slate-700"
+                                >
+                                  <Navigation size={11} /> Maps
+                                </a>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                              {(pos?.images?.length ?? 0) > 0 && (
+                                <button
+                                  onClick={() =>
+                                    setSpotViewer({
+                                      index: 0,
+                                      files: pos!.images!.map((url, i) => ({
+                                        id: `spot-${r.id}-${i}`,
+                                        url,
+                                        filename: `${r.spot} — photo ${i + 1}`,
+                                        mime: "image/jpeg",
+                                        size: 0,
+                                        category: "scouting",
+                                        description: "",
+                                        hidden: true,
+                                        uploadedBy: "",
+                                        createdAt: "",
+                                      })),
+                                    })
+                                  }
+                                  className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100"
+                                >
+                                  <Camera size={11} /> Photos ({pos!.images!.length})
+                                </button>
+                              )}
+                            </div>
                           </td>
                         )}
                         <td className="px-3 py-2 text-slate-900" style={fgStyle}>
@@ -1027,5 +1064,14 @@ function TacticSpotTable({
                 </tbody>
               </table>
             </div>
+      {spotViewer && (
+        <Lightbox
+          files={spotViewer.files}
+          index={spotViewer.index}
+          onClose={() => setSpotViewer(null)}
+          onNavigate={(i) => setSpotViewer((v) => (v ? { ...v, index: i } : v))}
+        />
+      )}
+    </>
   );
 }
