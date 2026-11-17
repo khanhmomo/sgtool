@@ -508,6 +508,10 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
   const breaks = normBreakTables(hyrox.breaks);
   // Per-shift station filter — key = shift index, value = station name ("ALL" = no filter)
   const [stationFilter, setStationFilter] = useState<Record<number, string>>({});
+  // Station notes are hidden behind a per-row "Note" toggle
+  const [noteOpen, setNoteOpen] = useState<Set<string>>(new Set());
+  const toggleNote = (k: string) =>
+    setNoteOpen((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   // Break tables are indexed by shift — only show those whose shift still exists
   const breakHas = (si: number) =>
     si < shifts.length && BREAK_STATIONS.some((s) => (breaks[si]?.rows?.[s] || []).some(nonEmptyBreak));
@@ -528,12 +532,14 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
           <Markdown text={dayNote} />
         </div>
       )}
+      {/* Mobile: shifts scroll side-by-side; desktop (sm+) stacks as before */}
+      <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:block sm:snap-none sm:space-y-4 sm:overflow-visible sm:px-0 sm:pb-0">
       {shifts.map((allStations, si) => {
         const stations = allStations.filter(showStation);
         const active = stationFilter[si] || "ALL";
         const visible = active === "ALL" ? stations : stations.filter((s) => s.station === active);
         return (
-        <div key={si}>
+        <div key={si} className={cn(shifts.length > 1 && "w-[86vw] shrink-0 snap-start", "sm:w-auto")}>
           <div className="mb-1.5 flex items-center justify-between gap-2">
             {shifts.length > 1 && (
               <p className="text-sm font-black uppercase tracking-wider text-slate-900">
@@ -579,7 +585,20 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                   >
                     <td className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">
                       {stationLabel(st.station)}
-                      {st.note && <div className="mt-0.5 whitespace-normal text-[10px] font-normal text-slate-600"><Markdown text={st.note} /></div>}
+                      {st.note && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => toggleNote(`${si}:${st.station}`)}
+                            className="mt-0.5 block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-200"
+                          >
+                            {noteOpen.has(`${si}:${st.station}`) ? "Hide note" : "Note"}
+                          </button>
+                          {noteOpen.has(`${si}:${st.station}`) && (
+                            <div className="mt-0.5 whitespace-normal text-[10px] font-normal text-slate-600"><Markdown text={st.note} /></div>
+                          )}
+                        </>
+                      )}
                     </td>
                     <td className="border border-slate-900 px-3 py-2">
                       {st.photographers.length || (st.ls || []).length ? (
@@ -629,8 +648,17 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                     <span className="rounded bg-[#FFED00] px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide text-slate-900">
                       {stationLabel(st.station)}
                     </span>
+                    {st.note && (
+                      <button
+                        type="button"
+                        onClick={() => toggleNote(`m${si}:${st.station}`)}
+                        className="ml-auto rounded bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500"
+                      >
+                        {noteOpen.has(`m${si}:${st.station}`) ? "Hide note" : "Note"}
+                      </button>
+                    )}
                   </div>
-                  {st.note && (
+                  {st.note && noteOpen.has(`m${si}:${st.station}`) && (
                     <div className="border-b border-slate-100 px-3 py-1.5 text-[11px] text-slate-600">
                       <Markdown text={st.note} />
                     </div>
@@ -721,6 +749,7 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
         </div>
         );
       })}
+      </div>
 
       {groups.length > 0 && (
         <div>
