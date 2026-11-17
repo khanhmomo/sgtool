@@ -935,6 +935,11 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const [breakEdit, setBreakEdit] = useState<number | null>(null);
   /** Station currently selected inside the break editor */
   const [breakStation, setBreakStation] = useState<string>(BREAK_STATIONS[0]);
+  /** Fast-generate panel state inside the break editor */
+  const [fastGen, setFastGen] = useState(false);
+  const [fgStart, setFgStart] = useState("09:00");
+  const [fgDur, setFgDur] = useState("30");
+  const [fgCount, setFgCount] = useState("3");
 
   const day = days.find((d) => d.date === activeDate);
   const tactic = day?.tactic || defaultTactic();
@@ -1034,6 +1039,25 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
     setBreakRows(si, station, breakRows(si, station).map((r, x) => (x === bi ? { ...r, ...p } : r)));
   const removeBreakRow = (si: number, station: string, bi: number) =>
     setBreakRows(si, station, breakRows(si, station).filter((_, x) => x !== bi));
+
+  /** Fast-generate break windows: `count` breaks per crew member of `dur`
+      minutes starting at `fgStart`; "Covered by" is left blank for manual fill. */
+  const fastGenerate = (si: number, station: string) => {
+    const st = (tactic.shifts[si] || []).find((x) => normStation(x.station) === station || x.station === station);
+    const crew = st?.photographers || [];
+    const mins = parseInt(fgDur, 10);
+    const per = parseInt(fgCount, 10);
+    if (!fgStart || !mins || !per || crew.length === 0) return;
+    const [h, m] = fgStart.split(":").map(Number);
+    const t0 = h * 60 + m;
+    const hm = (t: number) => `${String(Math.floor(t / 60) % 24).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+    const rows: HyroxBreakRow[] = [];
+    for (let i = 0; i < crew.length * per; i++) {
+      rows.push({ start: hm(t0 + i * mins), end: hm(t0 + (i + 1) * mins), cover: "" });
+    }
+    setBreakRows(si, station, rows);
+    setFastGen(false);
+  };
 
   const removeName = (si: number, sti: number, key: "photographers" | "cover" | "ls", name: string) =>
     setShiftStation(si, sti, { [key]: tactic.shifts[si][sti][key].filter((n) => n !== name) });
@@ -1580,10 +1604,45 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </Select>
+                  <Button variant="outline" size="sm" onClick={() => setFastGen((v) => !v)}>
+                    <AlarmClock size={12} className="mr-1" /> Fast generate
+                  </Button>
                   <Button variant="outline" size="sm" className="ml-auto" onClick={() => addBreakRow(si, station)}>
                     <Plus size={12} className="mr-1" /> break
                   </Button>
                 </div>
+                {fastGen && (() => {
+                  const st = (tactic.shifts[si] || []).find((x) => normStation(x.station) === station || x.station === station);
+                  const crewN = (st?.photographers || []).length;
+                  const total = crewN * (parseInt(fgCount, 10) || 0);
+                  return (
+                    <div className="flex flex-wrap items-end gap-2 rounded-md border border-blue-200 bg-blue-50/60 p-2.5">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        Start
+                        <Input type="time" value={fgStart} onChange={(e) => setFgStart(e.target.value)} className="mt-0.5 w-24" />
+                      </label>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        Duration (min)
+                        <Input type="number" min={1} value={fgDur} onChange={(e) => setFgDur(e.target.value)} className="mt-0.5 w-20" />
+                      </label>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        Breaks / person
+                        <Input type="number" min={1} value={fgCount} onChange={(e) => setFgCount(e.target.value)} className="mt-0.5 w-20" />
+                      </label>
+                      <span className="pb-2 text-[11px] text-slate-500">
+                        {crewN} on {station} → <b>{total}</b> windows
+                      </span>
+                      <Button
+                        size="sm"
+                        className="ml-auto"
+                        disabled={!fgStart || !crewN || !(parseInt(fgDur, 10) > 0) || !(parseInt(fgCount, 10) > 0)}
+                        onClick={() => fastGenerate(si, station)}
+                      >
+                        Generate
+                      </Button>
+                    </div>
+                  );
+                })()}
                 <div className="min-h-0 flex-1 overflow-auto">
                 {list.length > 0 ? (
                   <div className="overflow-x-auto rounded-md border border-slate-200">
