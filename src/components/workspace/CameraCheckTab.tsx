@@ -90,7 +90,7 @@ export default function CameraCheckTab({ event }: TabProps) {
                 className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-700"
               >
                 {copied ? <Check size={13} /> : <Copy size={13} />}
-                {copied ? "Copied!" : "Copy co-leader link"}
+                {copied ? "Copied!" : "Copy jumpers link"}
               </button>
             )}
           </div>
