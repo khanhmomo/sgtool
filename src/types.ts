@@ -304,6 +304,11 @@ export interface EventDTO {
   documents: EventDoc[];
   checklist: ChecklistGroup[];
   requests: EventRequest[];
+  /** Merge metadata for per-day PATCH — never persisted */
+  tacticDayChanged?: string[];
+  tacticDayBaseKeys?: string[];
+  hyroxChanged?: string[];
+  hyroxBaseKeys?: string[];
   /** Camera check state per date → photographer id — live checkbox page */
   cameraCheck?: Record<string, Record<string, { checked: boolean; by?: string; at?: number }>>;
   notes: string;

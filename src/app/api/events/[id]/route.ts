@@ -16,6 +16,32 @@ const PATCHABLE = new Set([
 
 type Ctx = { params: Promise<{ id: string }> };
 
+/** Merge a per-day list so a stale client only overwrites the days it actually
+    edited. `changed` = day keys the client modified, `baseKeys` = keys it knew
+    about. Unchanged stale copies keep the server's fresh version; days deleted
+    by the client (in baseKeys, absent from incoming) are removed; days added by
+    someone else (not in baseKeys) are preserved. */
+function mergeDayList<T extends Record<string, unknown>>(
+  current: T[],
+  incoming: T[],
+  changed: Set<string>,
+  baseKeys: Set<string>,
+  key: (d: T) => string
+): T[] {
+  const curKeys = new Set(current.map(key));
+  const inKeys = new Set(incoming.map(key));
+  const merged: T[] = [];
+  for (const d of current) {
+    const k = key(d);
+    if (changed.has(k)) {
+      const rep = incoming.find((x) => key(x) === k);
+      if (rep) merged.push(rep);
+    } else if (inKeys.has(k) || !baseKeys.has(k)) merged.push(d);
+  }
+  for (const d of incoming) if (!curKeys.has(key(d))) merged.push(d);
+  return merged;
+}
+
 async function ownedEvent(id: string, user: { id: string; role?: string }) {
   await connectDB();
   const filter: Record<string, unknown> = { _id: id };
@@ -68,6 +94,32 @@ export async function PATCH(req: Request, ctx: Ctx) {
     }
     event.ownerId = tl._id;
     event.ownerAcronym = tl.acronym || "";
+  }
+
+  // Per-day merged fields — a stale editor only clobbers days it edited
+  const tacticDayKey = (d: Record<string, unknown>) =>
+    (d.label ? `|${d.label}` : `${d.date || ""}|`);
+  if (Array.isArray(body.tacticDays) && Array.isArray(body.tacticDayChanged)) {
+    event.tacticDays = mergeDayList(
+      (event.tacticDays || []) as Record<string, unknown>[],
+      body.tacticDays as Record<string, unknown>[],
+      new Set(body.tacticDayChanged as string[]),
+      new Set((body.tacticDayBaseKeys || []) as string[]),
+      tacticDayKey
+    ) as never;
+    event.markModified("tacticDays");
+    delete body.tacticDays;
+  }
+  if (Array.isArray(body.hyrox) && Array.isArray(body.hyroxChanged)) {
+    event.hyrox = mergeDayList(
+      (event.hyrox || []) as Record<string, unknown>[],
+      body.hyrox as Record<string, unknown>[],
+      new Set(body.hyroxChanged as string[]),
+      new Set((body.hyroxBaseKeys || []) as string[]),
+      (d) => String(d.date || "")
+    ) as never;
+    event.markModified("hyrox");
+    delete body.hyrox;
   }
 
   for (const [k, v] of Object.entries(body)) {

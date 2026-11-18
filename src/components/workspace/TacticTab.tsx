@@ -173,14 +173,25 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
   // renders its own editor before this; Fitness Indoor is excluded)
   const canManageTabs = !isFitnessIndoor;
   const eventRange = dateRange(event.date.slice(0, 10), (event.endDate || "").slice(0, 10));
-  useAutosave(days, patch, (v) => ({
+  useAutosave(days, patch, (v) => {
     // In-range event dates are always persisted — removing one tab must not
     // wipe the other (still empty) date tabs once the list is authoritative.
-    tacticDays: v.filter(
+    const filtered = v.filter(
       (d) => d.rows.length || d.callTime || d.note || d.published || d.label || (d.categories?.length ?? 0) > 0 || eventRange.includes(d.date)
-    ),
-    ...(managed ? { tacticManaged: true } : {}),
-  }));
+    );
+    // Per-day merge metadata: the server only overwrites days that differ
+    // from our last-known server state — a stale editor can't clobber
+    // another TL's edits on days it never touched.
+    const server = event.tacticDays || [];
+    return {
+      tacticDays: filtered,
+      tacticDayChanged: filtered
+        .filter((d) => !server.some((sd) => dayKey(sd) === dayKey(d) && JSON.stringify(sd) === JSON.stringify(d)))
+        .map(dayKey),
+      tacticDayBaseKeys: server.map(dayKey),
+      ...(managed ? { tacticManaged: true } : {}),
+    };
+  });
   useAutosave(notes, patch, (v) => ({ notes: v }));
 
   // Categories — named sub-tables inside a date tactic ("Kids race" etc.),

@@ -1018,7 +1018,16 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
     const persisted = start
       ? nextDays.filter((d) => d.date >= start && (!end || d.date <= end))
       : nextDays;
-    patch({ hyrox: persisted });
+    // Per-day merge metadata — see TacticTab: stale editors only write the
+    // days they actually changed.
+    const server = event.hyrox || [];
+    patch({
+      hyrox: persisted,
+      hyroxChanged: persisted
+        .filter((d) => !server.some((sd) => sd.date === d.date && JSON.stringify(sd) === JSON.stringify(d)))
+        .map((d) => d.date),
+      hyroxBaseKeys: server.map((d) => d.date),
+    });
   };
 
   const setCallTime = (v: string) => {
