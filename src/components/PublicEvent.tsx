@@ -23,6 +23,7 @@ import {
   Megaphone,
   MessageSquarePlus,
   Timer,
+  Printer,
   CloudSun,
 } from "lucide-react";
 import { Badge, Card } from "@/components/ui";
@@ -276,7 +277,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
   return (
     <div className="min-h-screen bg-slate-50 pb-16">
       {/* Header */}
-      <header className="border-b-4 border-blue-600 bg-gradient-to-b from-slate-950 to-slate-900 px-4 py-5 text-white lg:py-9">
+      <header className="pe-hero border-b-4 border-blue-600 bg-gradient-to-b from-slate-950 to-slate-900 px-4 py-5 text-white lg:py-9">
         <div className="mx-auto max-w-2xl lg:max-w-none lg:px-6">
           <div className="flex items-center gap-2">
             <Image src="/logo.png" alt="Sportograf" width={28} height={28} className="h-7 w-7 rounded-md object-contain" />
@@ -303,7 +304,7 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
             )}
             <span className="text-slate-400 lg:rounded-full lg:bg-white/10 lg:px-3.5 lg:py-1.5">TL: {[event.ownerAcronym, ...(event.teamLeaderInfos || []).map((t) => t.acronym)].filter(Boolean).join(" · ")}</span>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="pe-actions mt-3 flex flex-wrap gap-2">
             <button
               onClick={() => setReqOpen(true)}
               className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500 lg:px-4 lg:py-2.5 lg:text-sm"
@@ -316,13 +317,20 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
             >
               <Timer size={14} /> Camera check
             </button>
+            <a
+              href={`/e/${event.shareSlug}/tactic.pdf`}
+              title="Download the published tactic as a PDF — keep it offline on your phone"
+              className="inline-flex items-center gap-1.5 rounded-md bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700 lg:px-4 lg:py-2.5 lg:text-sm"
+            >
+              <Printer size={14} /> Tactic PDF
+            </a>
           </div>
         </div>
       </header>
 
       {/* Sticky quick nav */}
       {nav.length > 0 && (
-        <nav className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <nav className="pe-nav sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="mx-auto flex w-full max-w-2xl gap-1 overflow-x-auto px-3 py-2 lg:max-w-none">
             {nav.map((n) => {
               const Icon = n.icon;
@@ -404,12 +412,19 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                 ))}
               </div>
             )}
-            <HyroxPublicView
-              hyrox={(hyroxDays[hyroxDay] || hyroxDays[0]).tactic}
-              team={event.photographers.map((p) => p.acronym || p.name)}
-              callTime={(hyroxDays[hyroxDay] || hyroxDays[0]).callTime}
-              dayNote={(hyroxDays[hyroxDay] || hyroxDays[0]).note}
-            />
+            {hyroxDays.map((d, i) => (
+              <div key={d.date || i} className={i === hyroxDay ? "" : "hidden print:block"}>
+                {hyroxDays.length > 1 && (
+                  <p className="mb-2 hidden text-base font-black text-slate-900 print:block">{fmtDate(d.date)}</p>
+                )}
+                <HyroxPublicView
+                  hyrox={d.tactic}
+                  team={event.photographers.map((p) => p.acronym || p.name)}
+                  callTime={d.callTime}
+                  dayNote={d.note}
+                />
+              </div>
+            ))}
           </Section>
         ) : (pubTacticDays.length > 0 || ((event.tacticDays || []).length === 0 && event.tacticPublished && (event.tactic || []).length > 0)) && (
           <Section id="tactic" icon={<Target size={16} />} title="Tactic">
@@ -477,43 +492,48 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
                   <AlarmClock size={12} /> Call {pubTacticDays[0].callTime}
                 </p>
               )}
-            {(() => {
-              const d = pubTacticDays[tacticDay] || pubTacticDays[0];
-              const mainTitle = d?.mainName || ((d?.categories?.length ?? 0) > 0 ? "Race" : "");
-              return mainTitle ? (
-                <p className="mb-1.5 text-[11px] font-black uppercase tracking-wider text-slate-500">
-                  {mainTitle}
-                </p>
-              ) : null;
-            })()}
-            <TacticSpotTable rows={sortedTactic} event={event} isFitnessIndoor={isFitnessIndoor} />
-            {(pubTacticDays[tacticDay] || pubTacticDays[0])?.categories?.map((c) =>
-              c.rows.length ? (
-                <div key={c.id} className="mt-4">
-                  <p className="mb-1.5 text-[11px] font-black uppercase tracking-wider text-slate-500">{c.name}</p>
-                  <TacticSpotTable rows={sortTacticRows(c.rows)} event={event} isFitnessIndoor={isFitnessIndoor} />
-                </div>
-              ) : null
-            )}
-            {(() => {
-              const day = pubTacticDays[tacticDay] || pubTacticDays[0];
-              const withCall = pubTacticDays.filter((d) => d.callTime);
-              return (
-                <>
-                  {withCall.length > 0 && (
-                    <div className="mt-3 space-y-1 border-t border-slate-100 pt-3">
-                      {withCall.map((d) => (
-                        <p key={d.date} className="flex items-center gap-1.5 text-xs font-bold text-blue-700">
-                          <AlarmClock size={13} /> {d.date ? fmtDate(d.date) : "Day"} — Call time {d.callTime}
-                        </p>
-                      ))}
+            {/* Every published day is in the DOM: screen shows the selected
+                one, print/PDF shows them all (inactive = print-only). */}
+            {(pubTacticDays.length ? pubTacticDays : [null]).map((d, i) => (
+              <div key={d?.date || d?.label || i} className={i === tacticDay ? "" : "hidden print:block"}>
+                {pubTacticDays.length > 1 && d && (
+                  <p className="mb-1.5 hidden text-sm font-black text-slate-900 print:block">
+                    {d.label || (d.date ? fmtDate(d.date) : `Day ${i + 1}`)}
+                  </p>
+                )}
+                {(() => {
+                  const mainTitle = d?.mainName || ((d?.categories?.length ?? 0) > 0 ? "Race" : "");
+                  return mainTitle ? (
+                    <p className="mb-1.5 text-[11px] font-black uppercase tracking-wider text-slate-500">
+                      {mainTitle}
+                    </p>
+                  ) : null;
+                })()}
+                <TacticSpotTable rows={d ? sortTacticRows(d.rows) : sortedTactic} event={event} isFitnessIndoor={isFitnessIndoor} />
+                {d?.categories?.map((c) =>
+                  c.rows.length ? (
+                    <div key={c.id} className="mt-4">
+                      <p className="mb-1.5 text-[11px] font-black uppercase tracking-wider text-slate-500">{c.name}</p>
+                      <TacticSpotTable rows={sortTacticRows(c.rows)} event={event} isFitnessIndoor={isFitnessIndoor} />
                     </div>
-                  )}
-                  {day?.note && (
-                    <Markdown text={day.note} className="mt-3 border-t border-slate-100 pt-3 text-xs" />
-                  )}
-                </>
-              );
+                  ) : null
+                )}
+                {d?.note && (
+                  <Markdown text={d.note} className="mt-3 border-t border-slate-100 pt-3 text-xs" />
+                )}
+              </div>
+            ))}
+            {(() => {
+              const withCall = pubTacticDays.filter((d) => d.callTime);
+              return withCall.length > 0 ? (
+                <div className="mt-3 space-y-1 border-t border-slate-100 pt-3">
+                  {withCall.map((d) => (
+                    <p key={d.date} className="flex items-center gap-1.5 text-xs font-bold text-blue-700">
+                      <AlarmClock size={13} /> {d.date ? fmtDate(d.date) : "Day"} — Call time {d.callTime}
+                    </p>
+                  ))}
+                </div>
+              ) : null;
             })()}
           </Section>
         )}

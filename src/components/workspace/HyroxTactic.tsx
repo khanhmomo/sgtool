@@ -526,6 +526,22 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
   // Mobile shift scroller — which shift card is currently snapped into view
   const shiftScrollRef = useRef<HTMLDivElement>(null);
   const [activeShift, setActiveShift] = useState(0);
+  // Print (Save PDF): expand all notes and reset station filters so the
+  // printout contains the complete tactic, not just the visible slice.
+  useEffect(() => {
+    const open = () => {
+      const keys = new Set<string>();
+      shifts.forEach((sh, si) =>
+        sh.forEach((st) => {
+          if (st.note) { keys.add(`${si}:${st.station}`); keys.add(`m${si}:${st.station}`); }
+        })
+      );
+      setNoteOpen(keys);
+      setStationFilter({});
+    };
+    window.addEventListener("beforeprint", open);
+    return () => window.removeEventListener("beforeprint", open);
+  });
   const onShiftScroll = () => {
     const el = shiftScrollRef.current;
     if (!el || !el.firstElementChild) return;
@@ -554,7 +570,7 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
       )}
       {/* Mobile: shifts scroll side-by-side; desktop (sm+) stacks as before */}
       {shifts.length > 1 && (
-        <p className="mb-2 rounded-md bg-[#FFED00] px-3 py-2 text-center text-sm font-black uppercase tracking-wider text-slate-900 sm:hidden">
+        <p className="mb-2 rounded-md bg-[#FFED00] px-3 py-2 text-center text-sm font-black uppercase tracking-wider text-slate-900 sm:hidden print:hidden">
           {activeShift === 0
             ? `⇠ Swipe to view Shift ${shifts.length > 2 ? "2" : shifts.length} ⇢`
             : activeShift === shifts.length - 1
@@ -565,14 +581,14 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
       <div
         ref={shiftScrollRef}
         onScroll={onShiftScroll}
-        className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:block sm:snap-none sm:space-y-4 sm:overflow-visible sm:px-0 sm:pb-0"
+        className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:block sm:snap-none sm:space-y-4 sm:overflow-visible sm:px-0 sm:pb-0 print:block print:snap-none print:space-y-4 print:overflow-visible print:px-0 print:pb-0"
       >
       {shifts.map((allStations, si) => {
         const stations = allStations.filter(showStation);
         const active = stationFilter[si] || "ALL";
         const visible = active === "ALL" ? stations : stations.filter((s) => s.station === active);
         return (
-        <div key={si} className={cn(shifts.length > 1 && "w-[86vw] shrink-0 snap-start", "sm:w-auto")}>
+        <div key={si} className={cn(shifts.length > 1 && "w-[86vw] shrink-0 snap-start", "sm:w-auto print:w-full print:snap-align-none")}>
           <div className="mb-1.5 flex items-center justify-between gap-2">
             {shifts.length > 1 && (
               <p className="text-sm font-black uppercase tracking-wider text-slate-900">
@@ -581,7 +597,7 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
             )}
           </div>
           {/* Station filter — compact dropdown per shift */}
-          <div className="mb-2 flex items-center gap-1.5">
+          <div className="mb-2 flex items-center gap-1.5 print:hidden">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
               Station
             </span>
@@ -626,7 +642,7 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                           <button
                             type="button"
                             onClick={() => toggleNote(`${si}:${st.station}`)}
-                            className="mt-0.5 block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-200"
+                            className="mt-0.5 block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-200 print:hidden"
                           >
                             {noteOpen.has(`${si}:${st.station}`) ? "Hide note" : "View note"}
                           </button>
@@ -689,7 +705,7 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                       <button
                         type="button"
                         onClick={() => toggleNote(`m${si}:${st.station}`)}
-                        className="ml-auto rounded bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500"
+                        className="ml-auto rounded bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 print:hidden"
                       >
                         {noteOpen.has(`m${si}:${st.station}`) ? "Hide note" : "View note"}
                       </button>
@@ -1268,6 +1284,20 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
           <span className={`text-xs font-semibold ${published ? "text-emerald-600" : "text-slate-400"}`}>
             {published ? "Published" : "Hidden"}
           </span>
+          <a
+            href={`/api/events/${event.id}/tactic-xlsx`}
+            title="Download the filled momo.xlsx workbook — all tactic days, switch groups, breaks, control tower and crew"
+            className="flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
+          >
+            <Download size={12} /> XLSX
+          </a>
+          <a
+            href={`/api/events/${event.id}/tactic-pdf`}
+            title="Download the tactic as a styled PDF"
+            className="flex items-center gap-1 rounded-md bg-slate-700 px-2 py-1 text-xs font-semibold text-white hover:bg-slate-600"
+          >
+            <Download size={12} /> PDF
+          </a>
           <span className="flex items-center gap-1 text-xs font-medium text-slate-500">
             Call time
             <Input

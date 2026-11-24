@@ -13,6 +13,7 @@ import {
   EyeOff,
   Pencil,
   X,
+  Download,
 } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input, Select, Textarea, Notice } from "@/components/ui";
 import { uid, spotMapUrl, fmtDate, dateRangeYmd } from "@/lib/utils";
@@ -432,6 +433,13 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
                   <Wand2 size={14} /> Station template
                 </Button>
               )}
+              <a
+                href={`/api/events/${event.id}/tactic-pdf`}
+                title="Download the tactic as a styled PDF"
+                className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Download size={13} /> PDF
+              </a>
               <Button size="sm" variant="outline" onClick={() => addRow()}>
                 <Plus size={14} /> Add spot
               </Button>

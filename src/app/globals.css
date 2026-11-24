@@ -68,3 +68,12 @@ body {
 .no-clock::-webkit-inner-spin-button {
   display: none;
 }
+
+/* ── Print / Save-as-PDF ─────────────────────────────────────────── */
+@media print {
+  .pe-nav, .pe-actions, .pe-banner { display: none !important; }
+  .pe-hero { background: #fff !important; border-bottom: 3px solid #1d4ed8 !important; }
+  .pe-hero, .pe-hero * { color: #0f172a !important; }
+  body { background: #fff !important; }
+  section, .card-break { break-inside: avoid-page; }
+}
