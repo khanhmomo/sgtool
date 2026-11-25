@@ -324,6 +324,15 @@ export default function PublicEvent({ event, files }: { event: EventDTO; files: 
             >
               <Printer size={14} /> Tactic PDF
             </a>
+            {event.hotels.some((h) => h.name) && (
+              <a
+                href={`/e/${event.shareSlug}/hotel.pdf`}
+                title="Download hotel info as a PDF"
+                className="inline-flex items-center gap-1.5 rounded-md bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700 lg:px-4 lg:py-2.5 lg:text-sm"
+              >
+                <Printer size={14} /> Hotel PDF
+              </a>
+            )}
           </div>
         </div>
       </header>

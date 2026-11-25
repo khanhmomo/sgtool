@@ -7,6 +7,7 @@ import {
   Plus,
   Trash2,
   ExternalLink,
+  Download,
 } from "lucide-react";
 import {
   Button,
@@ -253,9 +254,20 @@ export default function InfoTab({ event, patch }: TabProps) {
           title={hotels.length > 1 ? `Hotels / Accommodation (${hotels.length})` : "Hotel / Accommodation"}
           icon={<BedDouble size={15} className="text-blue-600" />}
           action={
-            <Button size="sm" variant="outline" onClick={addHotel}>
-              <Plus size={13} /> Hotel
-            </Button>
+            <div className="flex items-center gap-2">
+              {hotels.length > 0 && (
+                <a
+                  href={`/api/events/${event.id}/hotel-pdf`}
+                  title="Download hotel info as a styled PDF"
+                  className="flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  <Download size={13} /> PDF
+                </a>
+              )}
+              <Button size="sm" variant="outline" onClick={addHotel}>
+                <Plus size={13} /> Hotel
+              </Button>
+            </div>
           }
         />
         {hotels.length === 0 && (
