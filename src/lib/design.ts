@@ -49,7 +49,7 @@ export const STATUS_META: Record<
   EventStatus,
   { label: string; badge: string; dot: string }
 > = {
-  planning: { label: "PLANNING", badge: "bg-slate-100 text-slate-700 border-slate-200", dot: "bg-slate-400" },
+  planning: { label: "PLANNING", badge: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
   ready: { label: "READY", badge: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-600" },
   live: { label: "LIVE", badge: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-600" },
   completed: { label: "COMPLETED", badge: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-600" },
@@ -57,7 +57,7 @@ export const STATUS_META: Record<
 };
 
 export const DOC_CATEGORY_META: Record<
-  DocCategory | "strategy",
+  DocCategory | "strategy" | "hyrox_breaks",
   { label: string; badge: string }
 > = {
   briefing: { label: "Briefing", badge: "bg-sky-50 text-sky-700 border-sky-200" },
@@ -66,6 +66,7 @@ export const DOC_CATEGORY_META: Record<
   checklist: { label: "Checklist", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   note: { label: "Note", badge: "bg-slate-100 text-slate-700 border-slate-200" },
   strategy: { label: "Strategy", badge: "bg-amber-50 text-amber-700 border-amber-200" },
+  hyrox_breaks: { label: "HYROX breaks", badge: "bg-orange-50 text-orange-700 border-orange-200" },
   other: { label: "Other", badge: "bg-slate-100 text-slate-600 border-slate-200" },
 };
 

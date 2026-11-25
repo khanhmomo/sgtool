@@ -1,15 +1,14 @@
 import Link from "next/link";
-import { Plus, CalendarDays, MapPin, ArrowRight } from "lucide-react";
+import { Plus, CalendarDays } from "lucide-react";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { connectDB } from "@/lib/db";
 import { Event, User } from "@/lib/models";
 import { serializeEvent, serializeUser } from "@/lib/serialize";
-import { STATUS_META } from "@/lib/design";
-import { fmtDate } from "@/lib/utils";
-import { Badge, Button, Card, Empty } from "@/components/ui";
+import { Button, Empty } from "@/components/ui";
+import EventCard from "@/components/EventCard";
 import EventsFilter from "@/components/EventsFilter";
-import AssignTl from "@/components/AssignTl";
+import type { EventStatus } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +21,32 @@ export default async function EventsPage(props: {
 
   await connectDB();
   const isAdmin = (session.user as { role?: string }).role === "admin";
-  const filter: Record<string, unknown> = isAdmin ? {} : { $or: [{ ownerId: session.user.id }, { teamLeaders: session.user.id }] };
+
+  // Base scope: ownership (+ admin TL filter). Status is applied separately so
+  // pill counts can reflect every status for the same scope/search.
+  const scopeAnd: Record<string, unknown>[] = [];
+  if (!isAdmin) {
+    scopeAnd.push({ $or: [{ ownerId: session.user.id }, { teamLeaders: session.user.id }] });
+  } else if (tl) {
+    scopeAnd.push({ ownerId: tl });
+  }
+  const scope: Record<string, unknown> = scopeAnd.length ? { $and: scopeAnd } : {};
+
+  const qClause = q
+    ? {
+        $or: [
+          { name: { $regex: q, $options: "i" } },
+          { location: { $regex: q, $options: "i" } },
+          { type: { $regex: q, $options: "i" } },
+        ],
+      }
+    : null;
+
+  const countFilter: Record<string, unknown> = { ...scope };
+  if (qClause) countFilter.$and = [...(countFilter.$and as unknown[] || []), qClause];
+
+  const filter: Record<string, unknown> = { ...countFilter };
   if (status) filter.status = status;
-  if (isAdmin && tl) filter.ownerId = tl;
 
   // Admin-only: TL list for the "filter by team leader" select
   const tls = isAdmin
@@ -32,25 +54,37 @@ export default async function EventsPage(props: {
         serializeUser
       )
     : [];
-  if (q) {
-    filter.$or = [
-      { name: { $regex: q, $options: "i" } },
-      { location: { $regex: q, $options: "i" } },
-      { type: { $regex: q, $options: "i" } },
-    ];
-  }
-  const events = (
-    await Event.find(filter)
+
+  const [events, statusRows] = await Promise.all([
+    Event.find(filter)
       .sort({ date: sort === "asc" ? 1 : -1 })
-      .lean()
-  ).map(serializeEvent);
+      .lean(),
+    Event.aggregate<{ _id: EventStatus; n: number }>([
+      { $match: countFilter },
+      { $group: { _id: "$status", n: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const dto = events.map(serializeEvent);
+  const counts: Partial<Record<EventStatus, number>> = {};
+  let total = 0;
+  for (const r of statusRows) {
+    counts[r._id] = r.n;
+    total += r.n;
+  }
+
+  const upcoming = dto.filter((e) => e.status !== "archived" && e.status !== "completed");
+  const past = dto.filter((e) => e.status === "archived" || e.status === "completed");
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div className="mx-auto max-w-6xl">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Events</h1>
-          <p className="text-sm text-slate-500">{events.length} event{events.length === 1 ? "" : "s"}</p>
+          <p className="text-sm text-slate-500">
+            {dto.length} event{dto.length === 1 ? "" : "s"}
+            {status || q ? " matching filters" : ""}
+          </p>
         </div>
         <Link href="/events/new">
           <Button variant="accent">
@@ -59,12 +93,13 @@ export default async function EventsPage(props: {
         </Link>
       </div>
 
-      <EventsFilter q={q} status={status} sort={sort} tl={tl} tls={tls} />
+      <EventsFilter q={q} status={status} sort={sort} tl={tl} tls={tls} counts={counts} total={total} />
 
-      {events.length === 0 ? (
+      {dto.length === 0 ? (
         <Empty
           icon={<CalendarDays size={28} />}
           title={q || status ? "No events match your filters" : "No events yet"}
+          hint={q || status ? "Try a different search or clear the status filter." : undefined}
           action={
             <Link href="/events/new">
               <Button variant="accent" size="sm">
@@ -74,38 +109,33 @@ export default async function EventsPage(props: {
           }
         />
       ) : (
-        <div className="space-y-2">
-          {events.map((e) => {
-            const st = STATUS_META[e.status] || STATUS_META.planning;
-            return (
-              <Link key={e.id} href={`/events/${e.id}`}>
-                <Card className="group flex items-center gap-4 p-4 transition-shadow hover:shadow-md">
-                  <div className={`h-10 w-1.5 shrink-0 rounded-full ${st.dot}`} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="truncate font-semibold text-slate-900">{e.name}</h3>
-                      <Badge className={st.badge}>{st.label}</Badge>
-                    </div>
-                    <p className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                      <span>{e.type}</span>
-                      <span>{fmtDate(e.date)}</span>
-                      {e.location && (
-                        <span className="flex items-center gap-1">
-                          <MapPin size={11} /> {e.location}
-                        </span>
-                      )}
-                      <span>{e.photographers.length} photographers</span>
-                      <span>{e.positions.length} positions</span>
-                    </p>
-                    {isAdmin && (
-                      <AssignTl eventId={e.id} ownerAcronym={e.ownerAcronym} ownerId={e.ownerId} />
-                    )}
-                  </div>
-                  <ArrowRight size={16} className="shrink-0 text-slate-300 group-hover:text-slate-500" />
-                </Card>
-              </Link>
-            );
-          })}
+        <div className="space-y-8">
+          {upcoming.length > 0 && (
+            <section>
+              <h2 className="mb-3 flex items-baseline gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+                Upcoming
+                <span className="font-medium normal-case text-slate-400">{upcoming.length}</span>
+              </h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {upcoming.map((e) => (
+                  <EventCard key={e.id} event={e} isAdmin={isAdmin} />
+                ))}
+              </div>
+            </section>
+          )}
+          {past.length > 0 && (
+            <section>
+              <h2 className="mb-3 flex items-baseline gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+                Completed / Archived
+                <span className="font-medium normal-case text-slate-400">{past.length}</span>
+              </h2>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {past.map((e) => (
+                  <EventCard key={e.id} event={e} dim isAdmin={isAdmin} />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       )}
     </div>

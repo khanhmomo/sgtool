@@ -6,7 +6,8 @@ import { Event, Template } from "@/lib/models";
 import { requireUser } from "@/auth";
 import { serializeEvent } from "@/lib/serialize";
 import { fetchBestof } from "@/lib/bestof";
-import type { EventDoc } from "@/types";
+import { normBreakTables, normStationName } from "@/lib/hyrox-breaks";
+import type { EventDoc, HyroxDayPlan } from "@/types";
 
 const createSchema = z.object({
   name: z.string().min(2).max(200),
@@ -20,6 +21,51 @@ const createSchema = z.object({
   bestofUrl: z.string().max(300).optional(),
   templateId: z.string().optional(),
 });
+
+// GET /api/events — light list for pickers (e.g. importing break schedules
+// into a Bookshelf template). Returns name/dates plus each HYROX day's
+// normalized break tables — no heavy fields.
+export async function GET() {
+  const user = await requireUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  await connectDB();
+  const isAdmin = (user as { role?: string }).role === "admin";
+  const filter = isAdmin
+    ? {}
+    : { $or: [{ ownerId: user.id }, { teamLeaders: user.id }] };
+  const events = await Event.find(filter).select("name date endDate hyrox").sort({ date: -1 }).lean();
+  return NextResponse.json({
+    events: events.map((e) => ({
+      id: String(e._id),
+      name: e.name,
+      date: e.date || "",
+      endDate: e.endDate || "",
+      days: ((Array.isArray(e.hyrox) ? e.hyrox : []) as HyroxDayPlan[]).map((d) => ({
+        date: d?.date || "",
+        breaks: normBreakTables(d?.tactic?.breaks),
+        // Per-station break windows from the shift table's "Breaks" column —
+        // where real events actually store break times (st.breaks).
+        stationBreaks: (d?.tactic?.shifts || []).map((shift) => {
+          const out: Record<string, { start: string; end: string }[]> = {};
+          for (const st of shift || []) {
+            const name = normStationName(st?.station || "");
+            const raw: { start?: string; end?: string }[] = Array.isArray(st?.breaks)
+              ? st.breaks
+              : st?.breaks
+                ? [{ start: st.breaks }]
+                : [];
+            const list = raw
+              .map((w) => ({ start: w?.start || "", end: w?.end || "" }))
+              .filter((w) => /^\d{2}:\d{2}$/.test(w.start));
+            if (name && list.length) out[name] = list;
+          }
+          return out;
+        }),
+      })),
+    })),
+  });
+}
 
 export async function POST(req: Request) {
   const user = await requireUser();

@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 const patchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
-  category: z.enum(["briefing", "tactic", "guide", "checklist", "note", "strategy", "other"]).optional(),
+  category: z.enum(["briefing", "tactic", "guide", "checklist", "note", "strategy", "hyrox_breaks", "other"]).optional(),
   tags: z.array(z.string().max(40)).max(20).optional(),
   body: z.string().max(100_000).optional(),
   archived: z.boolean().optional(),
@@ -26,13 +26,18 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   await connectDB();
-  const doc = await Template.findOneAndUpdate(
-    { _id: id, ownerId: user.id },
-    { $set: parsed.data },
-    { new: true }
-  );
-  if (!doc) return NextResponse.json({ error: "Template not found" }, { status: 404 });
-  return NextResponse.json({ template: serializeTemplate(doc) });
+  try {
+    const doc = await Template.findOneAndUpdate(
+      { _id: id, ownerId: user.id },
+      { $set: parsed.data },
+      { new: true, runValidators: true }
+    );
+    if (!doc) return NextResponse.json({ error: "Template not found" }, { status: 404 });
+    return NextResponse.json({ template: serializeTemplate(doc) });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Update failed";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
 }
 
 export async function DELETE(_req: Request, ctx: Ctx) {

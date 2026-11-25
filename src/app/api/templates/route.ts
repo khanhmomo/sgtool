@@ -7,7 +7,7 @@ import { serializeTemplate } from "@/lib/serialize";
 
 const schema = z.object({
   title: z.string().min(1).max(200),
-  category: z.enum(["briefing", "tactic", "guide", "checklist", "note", "strategy", "other"]).default("other"),
+  category: z.enum(["briefing", "tactic", "guide", "checklist", "note", "strategy", "hyrox_breaks", "other"]).default("other"),
   tags: z.array(z.string().max(40)).max(20).default([]),
   body: z.string().max(100_000).default(""),
 });
@@ -48,6 +48,11 @@ export async function POST(req: Request) {
   }
 
   await connectDB();
-  const doc = await Template.create({ ...parsed.data, ownerId: user.id });
-  return NextResponse.json({ template: serializeTemplate(doc) }, { status: 201 });
+  try {
+    const doc = await Template.create({ ...parsed.data, ownerId: user.id });
+    return NextResponse.json({ template: serializeTemplate(doc) }, { status: 201 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Create failed";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
 }

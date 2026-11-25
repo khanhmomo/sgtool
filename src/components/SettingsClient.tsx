@@ -55,7 +55,7 @@ export default function SettingsClient({ user }: { user: UserDTO }) {
       if (!res.ok) {
         setMsg({ kind: "error", text: data.error || "Save failed." });
       } else {
-        setMsg({ kind: "ok", text: "Profile saved. (Sign out/in to refresh the sidebar acronym.)" });
+        setMsg({ kind: "ok", text: "Profile saved. (Sign out/in to refresh the header acronym.)" });
       }
     } finally {
       setSaving(false);
@@ -115,7 +115,7 @@ export default function SettingsClient({ user }: { user: UserDTO }) {
                   const data = await res.json().catch(() => ({}));
                   if (res.ok) {
                     setForm((p) => ({ ...p, image: data.user.image }));
-                    setMsg({ kind: "ok", text: "Avatar updated. (Sign out/in to refresh the sidebar.)" });
+                    setMsg({ kind: "ok", text: "Avatar updated. (Sign out/in to refresh the header.)" });
                   } else {
                     setMsg({ kind: "error", text: data.error || "Upload failed." });
                   }

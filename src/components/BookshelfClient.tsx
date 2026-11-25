@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Library,
@@ -13,6 +13,7 @@ import {
   Pencil,
   X,
   Save,
+  CalendarDays,
 } from "lucide-react";
 import {
   Button,
@@ -27,10 +28,33 @@ import {
 import { DOC_CATEGORY_META } from "@/lib/design";
 import { fmtDate, uid } from "@/lib/utils";
 import { parseChecklist, serializeChecklist } from "@/lib/checklist";
+import {
+  BREAK_TPL_CATEGORY,
+  HYROX_BREAK_STATIONS,
+  breakTemplateSummary,
+  parseBreakTemplate,
+  serializeBreakTemplate,
+  type BreakTemplateData,
+} from "@/lib/hyrox-breaks";
 import Markdown from "@/components/Markdown";
-import type { ChecklistGroup, TemplateDTO } from "@/types";
+import type { ChecklistGroup, HyroxBreakTable, TemplateDTO } from "@/types";
 
 type EditingTpl = TemplateDTO & { __isNew?: boolean };
+
+/** Shape returned by GET /api/events */
+type ImportedEvent = {
+  id: string;
+  name: string;
+  date: string;
+  endDate: string;
+  days: {
+    date: string;
+    /** Schedule-table rows per shift (self-managed stations, with cover) */
+    breaks: HyroxBreakTable[];
+    /** Per-station windows per shift (the "Breaks" column — where times live) */
+    stationBreaks: Record<string, { start: string; end: string }[]>[];
+  }[];
+};
 
 export default function BookshelfClient({
   templates: initial,
@@ -48,20 +72,96 @@ export default function BookshelfClient({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [checkGroups, setCheckGroups] = useState<ChecklistGroup[] | null>(null);
+  const [breakTpl, setBreakTpl] = useState<BreakTemplateData | null>(null);
   const [newItem, setNewItem] = useState<Record<string, string>>({});
   const [newGroup, setNewGroup] = useState("");
 
-  /** When switching TO Checklist, parse body → groups; switching away serializes back. */
+  /** Open the editor and hydrate the structured state for checklist/break templates. */
+  function openEditor(t: EditingTpl) {
+    setCheckGroups(t.category === "checklist" ? parseChecklist(t.body) : null);
+    setBreakTpl(t.category === BREAK_TPL_CATEGORY ? parseBreakTemplate(t.body) : null);
+    setEditing(t);
+  }
+
+  /** When switching TO a structured category, parse body into editor state;
+      switching away serializes the pending structured state back. */
   function changeCategory(c: TemplateDTO["category"]) {
     if (!editing) return;
-    if (c === "checklist") {
-      setCheckGroups(checkGroups ?? parseChecklist(editing.body));
-    } else if (checkGroups) {
-      setEditing({ ...editing, category: c, body: serializeChecklist(checkGroups) });
+    let body = editing.body;
+    if (checkGroups) {
+      body = serializeChecklist(checkGroups);
       setCheckGroups(null);
-      return;
     }
-    setEditing({ ...editing, category: c });
+    if (breakTpl) {
+      body = serializeBreakTemplate(breakTpl);
+      setBreakTpl(null);
+    }
+    setEditing({ ...editing, category: c, body });
+    if (c === "checklist") setCheckGroups(parseChecklist(body.trim().startsWith("{") ? "" : body));
+    if (c === BREAK_TPL_CATEGORY) setBreakTpl(parseBreakTemplate(body));
+  }
+
+  const setBreakRows = (station: string, rows: { start: string; end: string }[]) =>
+    setBreakTpl((d) => (d ? { ...d, [station]: rows } : d));
+
+  // ── Import break windows from a previous event ──────────────────────────
+  const [importOpen, setImportOpen] = useState(false);
+  const [evList, setEvList] = useState<ImportedEvent[] | null>(null);
+  const [evId, setEvId] = useState("");
+  const [slot, setSlot] = useState(""); // "dayIdx:shiftIdx" into the event's break tables
+
+  useEffect(() => {
+    if (!importOpen || evList !== null) return;
+    fetch("/api/events")
+      .then((r) => r.json())
+      .then((d) => setEvList(d.events || []))
+      .catch(() => setEvList([]));
+  }, [importOpen, evList]);
+
+  const selEvent = evList?.find((e) => e.id === evId);
+  // Only day+shift combos that actually contain break windows — from either the
+  // per-station "Breaks" column or the break-schedule table
+  const slotOptions = (selEvent?.days || []).flatMap((d, di) =>
+    Array.from({ length: Math.max(d.stationBreaks?.length || 0, d.breaks?.length || 0) }, (_, si) => si).flatMap((si) => {
+      const sb = d.stationBreaks?.[si] || {};
+      const windows =
+        Object.values(sb).reduce((n, r) => n + r.length, 0) +
+        Object.values(d.breaks?.[si]?.rows || {}).reduce(
+          (n, r) => n + r.filter((x) => /^\d{2}:\d{2}$/.test(x.start)).length,
+          0
+        );
+      return windows ? [{ value: `${di}:${si}`, label: `${fmtDate(d.date)} · Shift ${si + 1} (${windows})` }] : [];
+    })
+  );
+
+  function importFromEvent() {
+    const [di, si] = slot.split(":").map(Number);
+    const day = selEvent?.days[di];
+    const stBreaks = day?.stationBreaks?.[si] || {};
+    const rows = day?.breaks?.[si]?.rows || {};
+    const hasContent = breakTpl && Object.values(breakTpl).some((r) => r.length > 0);
+    if (hasContent && !confirm("Replace the current windows with the imported ones?")) return;
+    const next: BreakTemplateData = {};
+    for (const s of HYROX_BREAK_STATIONS) {
+      // Merge per-station windows + schedule-table rows (times only), dedupe, sort
+      const seen = new Set<string>();
+      const merged = [...(stBreaks[s] || []), ...(rows[s] || []).map((r) => ({ start: r.start, end: r.end }))]
+        .filter((w) => /^\d{2}:\d{2}$/.test(w.start) && !seen.has(`${w.start}-${w.end}`) && seen.add(`${w.start}-${w.end}`))
+        .sort((a, b) => a.start.localeCompare(b.start));
+      next[s] = merged;
+    }
+    setBreakTpl(next);
+    setImportOpen(false);
+  }
+
+  function closeEditor() {
+    setEditing(null);
+    setCheckGroups(null);
+    setBreakTpl(null);
+    setImportOpen(false);
+    setEvId("");
+    setSlot("");
+    setError("");
   }
 
   function setGroupTitle(gi: number, title: string) {
@@ -136,9 +236,12 @@ export default function BookshelfClient({
       const payload = {
         title: editing.title,
         category: editing.category,
-        body: editing.category === "checklist" && checkGroups
-          ? serializeChecklist(checkGroups)
-          : editing.body,
+        body:
+          editing.category === "checklist" && checkGroups
+            ? serializeChecklist(checkGroups)
+            : editing.category === BREAK_TPL_CATEGORY && breakTpl
+              ? serializeBreakTemplate(breakTpl)
+              : editing.body,
       };
       const res = editing.__isNew
         ? await fetch("/api/templates", {
@@ -151,12 +254,12 @@ export default function BookshelfClient({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        setError(data.error || "Save failed.");
+        setError(data?.error || `Save failed (${res.status}). Try restarting the dev server.`);
         return;
       }
-      setEditing(null);
+      closeEditor();
       await refresh();
       router.refresh();
     } finally {
@@ -204,7 +307,7 @@ export default function BookshelfClient({
         <Button
           variant="accent"
           onClick={() =>
-            setEditing({
+            openEditor({
               id: "",
               ownerId: "",
               title: "",
@@ -253,7 +356,7 @@ export default function BookshelfClient({
               size="sm"
               variant="accent"
               onClick={() =>
-                setEditing({
+                openEditor({
                   id: "", ownerId: "", title: "", category: "tactic", tags: [],
                   body: "", archived: false, createdAt: "", updatedAt: "", __isNew: true,
                 })
@@ -300,17 +403,41 @@ export default function BookshelfClient({
               >
                 <h3 className="font-semibold text-slate-900">{t.title}</h3>
                 <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">
-                  {t.body.replace(/[#*\-[\]]/g, "").trim().slice(0, 140) || "Empty template"}
+                  {t.category === BREAK_TPL_CATEGORY
+                    ? breakTemplateSummary(parseBreakTemplate(t.body))
+                    : t.body.replace(/[#*\-[\]]/g, "").trim().slice(0, 140) || "Empty template"}
                 </p>
                 <p className="mt-1 text-[10px] text-slate-400">Updated {fmtDate(t.updatedAt)}</p>
               </button>
               {expanded === t.id && (
                 <div className="max-h-64 overflow-y-auto border-t border-slate-100 px-4 py-3">
-                  <Markdown text={t.body} />
+                  {t.category === BREAK_TPL_CATEGORY ? (
+                    <div className="space-y-1.5">
+                      {HYROX_BREAK_STATIONS.map((s) => {
+                        const rows = parseBreakTemplate(t.body)[s] || [];
+                        return (
+                          <div key={s} className="flex flex-wrap items-center gap-1.5 text-xs">
+                            <span className="w-20 shrink-0 font-semibold text-slate-600">{s}</span>
+                            {rows.length === 0 ? (
+                              <span className="text-slate-300">—</span>
+                            ) : (
+                              rows.map((w, i) => (
+                                <span key={i} className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
+                                  {w.start}–{w.end}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <Markdown text={t.body} />
+                  )}
                 </div>
               )}
               <div className="flex items-center gap-1 border-t border-slate-100 px-3 py-2">
-                <button onClick={() => setEditing({ ...t })} title="Edit" className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <button onClick={() => openEditor({ ...t })} title="Edit" className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
                   <Pencil size={14} />
                 </button>
                 <button onClick={() => duplicate(t.id)} title="Duplicate" className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
@@ -343,7 +470,7 @@ export default function BookshelfClient({
               <h3 className="text-sm font-semibold text-slate-900">
                 {editing.__isNew ? "New template" : "Edit template"}
               </h3>
-              <button onClick={() => setEditing(null)} className="p-1.5 text-slate-400 hover:text-slate-700">
+              <button onClick={closeEditor} className="p-1.5 text-slate-400 hover:text-slate-700">
                 <X size={16} />
               </button>
             </div>
@@ -447,6 +574,109 @@ export default function BookshelfClient({
                     </div>
                   </div>
                 </Field>
+              ) : editing.category === BREAK_TPL_CATEGORY && breakTpl ? (
+                <Field
+                  label="Break windows"
+                  hint="Reusable break times per station. Applied in the HYROX tactic editor — 'Covered by' stays blank for each event."
+                >
+                  <div className="space-y-3">
+                    <div>
+                      <Button size="xs" variant="outline" onClick={() => setImportOpen((v) => !v)}>
+                        <CalendarDays size={12} /> Import from event
+                      </Button>
+                      {importOpen && (
+                        <div className="mt-2 space-y-2 rounded-md border border-blue-200 bg-blue-50/60 p-2.5">
+                          {evList === null ? (
+                            <p className="text-xs text-slate-400">Loading events…</p>
+                          ) : evList.length === 0 ? (
+                            <p className="text-xs text-slate-500">No events found.</p>
+                          ) : (
+                            <>
+                              <Select value={evId} onChange={(e) => { setEvId(e.target.value); setSlot(""); }} className="h-9 w-full text-xs">
+                                <option value="">Choose an event…</option>
+                                {evList.map((ev) => (
+                                  <option key={ev.id} value={ev.id}>
+                                    {ev.name}{ev.date ? ` — ${fmtDate(ev.date)}` : ""}
+                                  </option>
+                                ))}
+                              </Select>
+                              {selEvent && (
+                                slotOptions.length === 0 ? (
+                                  <p className="text-xs text-slate-500">This event has no saved break schedule.</p>
+                                ) : (
+                                  <>
+                                    <Select value={slot} onChange={(e) => setSlot(e.target.value)} className="h-9 w-full text-xs">
+                                      <option value="">Choose day / shift…</option>
+                                      {slotOptions.map((o) => (
+                                        <option key={o.value} value={o.value}>{o.label}</option>
+                                      ))}
+                                    </Select>
+                                    <div className="flex justify-end">
+                                      <Button size="sm" variant="accent" disabled={!slot} onClick={importFromEvent}>
+                                        Import
+                                      </Button>
+                                    </div>
+                                  </>
+                                )
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {HYROX_BREAK_STATIONS.map((station) => {
+                      const rows = breakTpl[station] || [];
+                      return (
+                        <div key={station} className="rounded-md border border-slate-200">
+                          <div className="flex items-center justify-between border-b border-slate-100 px-2 py-1.5">
+                            <span className="text-xs font-bold uppercase tracking-wide text-slate-600">
+                              {station}
+                            </span>
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              onClick={() => setBreakRows(station, [...rows, { start: "", end: "" }])}
+                            >
+                              <Plus size={12} /> window
+                            </Button>
+                          </div>
+                          <div className="space-y-1.5 px-2 py-2">
+                            {rows.length === 0 && (
+                              <p className="text-xs text-slate-400">No breaks for this station.</p>
+                            )}
+                            {rows.map((w, wi) => (
+                              <div key={wi} className="flex items-center gap-2">
+                                <Input
+                                  type="time"
+                                  value={w.start}
+                                  onChange={(e) =>
+                                    setBreakRows(station, rows.map((r, j) => (j === wi ? { ...r, start: e.target.value } : r)))
+                                  }
+                                  className="h-7 w-24 text-xs"
+                                />
+                                <span className="text-xs text-slate-400">–</span>
+                                <Input
+                                  type="time"
+                                  value={w.end}
+                                  onChange={(e) =>
+                                    setBreakRows(station, rows.map((r, j) => (j === wi ? { ...r, end: e.target.value } : r)))
+                                  }
+                                  className="h-7 w-24 text-xs"
+                                />
+                                <button
+                                  onClick={() => setBreakRows(station, rows.filter((_, j) => j !== wi))}
+                                  className="ml-auto rounded p-1 text-slate-300 hover:text-red-600"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Field>
               ) : (
                 <Field
                   label="Content"
@@ -462,7 +692,7 @@ export default function BookshelfClient({
               )}
               {error && <Notice kind="error">{error}</Notice>}
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setEditing(null)}>
+                <Button variant="outline" onClick={closeEditor}>
                   Cancel
                 </Button>
                 <Button variant="accent" loading={saving} onClick={save} disabled={!editing.title.trim()}>

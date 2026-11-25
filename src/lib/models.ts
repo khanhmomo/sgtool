@@ -75,7 +75,7 @@ const TemplateSchema = new Schema(
     title: { type: String, required: true },
     category: {
       type: String,
-      enum: ["briefing", "tactic", "guide", "checklist", "note", "strategy", "other"],
+      enum: ["briefing", "tactic", "guide", "checklist", "note", "strategy", "hyrox_breaks", "other"],
       default: "other",
       index: true,
     },

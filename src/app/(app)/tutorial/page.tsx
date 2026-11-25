@@ -674,7 +674,7 @@ export default function TutorialPage() {
 
           <Section id="other" icon={<Search size={15} className="text-blue-600" />} title="Files, Search & tips">
             <Ul>
-              <li><b>Files</b> (sidebar) — every file across all your events in one place.</li>
+              <li><b>Files</b> (account menu) — every file across all your events in one place.</li>
               <li><b>Search</b> (top bar) — find events, positions, tactics and files.</li>
               <li>
                 Dates are fixed to the event — photographers everywhere see the same

@@ -320,7 +320,7 @@ export interface TemplateDTO {
   id: string;
   ownerId: string;
   title: string;
-  category: DocCategory | "strategy";
+  category: DocCategory | "strategy" | "hyrox_breaks";
   tags: string[];
   body: string;
   archived: boolean;

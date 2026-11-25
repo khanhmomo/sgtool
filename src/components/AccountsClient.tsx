@@ -294,7 +294,7 @@ export default function AccountsClient({ meId }: { meId: string }) {
                   placeholder="Jane Doe"
                 />
               </Field>
-              <Field label="Acronym (2–6 chars)" hint="Used for position IDs and the sidebar badge">
+              <Field label="Acronym (2–6 chars)" hint="Used for position IDs and the header badge">
                 <Input
                   required
                   value={editForm.acronym}

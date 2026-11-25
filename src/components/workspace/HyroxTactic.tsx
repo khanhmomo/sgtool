@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { AlarmClock, AlertTriangle, Aperture, BookOpen, ChevronDown, ChevronUp, Copy, Download, ExternalLink, Eye, EyeOff, Plus, Trash2, Users, X } from "lucide-react";
 import { Button, Card, CardHeader, Input, Select, Textarea } from "@/components/ui";
 import { cn, fmtDate, uid, dateRangeYmd } from "@/lib/utils";
+import { BREAK_TPL_CATEGORY, breakTemplateSummary, normBreakTables, parseBreakTemplate } from "@/lib/hyrox-breaks";
 import Markdown from "@/components/Markdown";
-import type { HyroxBreakRange, HyroxBreakRow, HyroxBreakTable, HyroxDayPlan, HyroxStationPlan, HyroxSwitchGroup, HyroxTactic, Photographer, TemplateDTO } from "@/types";
+import type { HyroxBreakRange, HyroxBreakRow, HyroxDayPlan, HyroxStationPlan, HyroxSwitchGroup, HyroxTactic, Photographer, TemplateDTO } from "@/types";
 import type { TabProps } from "./EventWorkspace";
 
 /** Fixed HYROX stations — never reordered or renamed by the user */
@@ -303,8 +304,9 @@ export function StationFitTable({ photographers, withEquipment, fillCells }: { p
   );
 }
 
-/** Stations 1-3 self-manage their breaks (no jumper cover) */
-const BREAK_STATIONS = HYROX_STATIONS.slice(0, 3);
+/** Stations self-manage their breaks (no jumper cover) */
+/** Stations eligible for break rows — everything except external LS-crewed stations */
+const BREAK_STATIONS = HYROX_STATIONS.filter((s) => !isExternal(s));
 
 type BreakRange = HyroxBreakRange;
 
@@ -550,7 +552,7 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
   };
   // Break tables are indexed by shift — only show those whose shift still exists
   const breakHas = (si: number) =>
-    si < shifts.length && BREAK_STATIONS.some((s) => (breaks[si]?.rows?.[s] || []).some(nonEmptyBreak));
+    si < shifts.length && Object.values(breaks[si]?.rows || {}).some((list) => list.some(nonEmptyBreak));
   const maxP = Math.max(0, ...groups.map((g) => g.photographers.length));
   const teamSet = new Set(team || []);
   const chip = (v: string, cls: string) =>
@@ -859,7 +861,7 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
             breakHas(si) ? (
               <div key={si}>
                 <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  Break schedule — stations 1–3{shifts.length > 1 ? ` (Shift ${si + 1})` : ""}
+                  Break schedule{shifts.length > 1 ? ` (Shift ${si + 1})` : ""}
                 </p>
                 <div className="hidden overflow-x-auto rounded-md border border-slate-900 sm:block">
                   <table className="w-full border-collapse text-left text-xs">
@@ -942,37 +944,6 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
   );
 }
 
-/** Normalize stored breaks to per-station rows. Handles two legacy shapes:
- *  flat HyroxBreak[] (station/photographer/start/end) and the shared-times
- *  matrix {times, rows: Record<station, string[]>} — a station owned a break
- *  window only when its cover cell was filled. */
-const normBreakTables = (b: unknown): HyroxBreakTable[] => {
-  if (!Array.isArray(b) || !b.length) return [];
-  // legacy flat HyroxBreak[]
-  if (typeof b[0] === "object" && b[0] && "station" in b[0]) {
-    const legacy = b as { station: string; photographer: string; start: string; end: string }[];
-    const rows: Record<string, HyroxBreakRow[]> = {};
-    for (const l of legacy) {
-      (rows[l.station] ||= []).push({ start: l.start || "", end: l.end || "", cover: l.photographer || "" });
-    }
-    return [{ rows }];
-  }
-  return (b as { times?: HyroxBreakRange[]; rows?: Record<string, unknown> }[]).map((t) => {
-    if (!t || typeof t !== "object") return { rows: {} };
-    // already per-station shape
-    if (!Array.isArray(t.times)) return { rows: (t.rows || {}) as Record<string, HyroxBreakRow[]> };
-    // shared-times matrix → keep windows the station actually covered
-    const rows: Record<string, HyroxBreakRow[]> = {};
-    for (const [station, covers] of Object.entries(t.rows || {})) {
-      const list = t.times
-        .map((tm, i) => ({ start: tm.start || "", end: tm.end || "", cover: String((covers as string[])[i] || "") }))
-        .filter((r) => r.cover);
-      if (list.length) rows[station] = list;
-    }
-    return { rows };
-  });
-};
-
 const normTactic = (t: HyroxTactic): HyroxTactic => {
   const shifts = (t.shifts || []).map((sh) => {
     const seen = new Set<string>();
@@ -1022,6 +993,9 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const [fgStart, setFgStart] = useState("09:00");
   const [fgDur, setFgDur] = useState("30");
   const [fgCount, setFgCount] = useState("3");
+  /** "From Bookshelf" break-template picker inside the break editor */
+  const [tplOpen, setTplOpen] = useState(false);
+  const [tplList, setTplList] = useState<TemplateDTO[] | null>(null);
 
   const day = days.find((d) => d.date === activeDate);
   const tactic = day?.tactic || defaultTactic();
@@ -1116,7 +1090,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const removeGroup = (id: string) =>
     touch({ ...tactic, switchGroups: tactic.switchGroups.filter((g) => g.id !== id) });
 
-  // Break schedules indexed by shift — each of stations 1-3 owns its break rows
+  // Break schedules indexed by shift — each station owns its break rows
   const breakRows = (si: number, station: string): HyroxBreakRow[] =>
     tactic.breaks[si]?.rows?.[station] || [];
   const setBreakRows = (si: number, station: string, list: HyroxBreakRow[]) => {
@@ -1148,6 +1122,61 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
     }
     setBreakRows(si, station, rows);
     setFastGen(false);
+  };
+
+  const loadTpl = () => {
+    if (tplList !== null) return;
+    fetch("/api/templates")
+      .then((r) => r.json())
+      .then((d) =>
+        setTplList((d.templates || []).filter((t: TemplateDTO) => t.category === BREAK_TPL_CATEGORY))
+      )
+      .catch(() => setTplList([]));
+  };
+
+  // Load break templates the first time the picker opens
+  useEffect(() => {
+    if (tplOpen) loadTpl();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tplOpen]);
+
+  /** Apply a Bookshelf break template to this shift — fills every station the
+      template defines at once, "Covered by" left blank for manual fill. */
+  const applyBreakTemplate = (si: number, body: string) => {
+    const data = parseBreakTemplate(body);
+    const stations = BREAK_STATIONS.filter((s) => (data[s] || []).length > 0);
+    if (!stations.length) return;
+    const dirty = stations.some((s) => breakRows(si, s).some(nonEmptyBreak));
+    if (dirty && !confirm("Replace existing break rows for these stations?")) return;
+    const breaks = [...tactic.breaks];
+    const rows = { ...(breaks[si]?.rows || {}) };
+    for (const s of stations) {
+      rows[s] = data[s].map((w) => ({ start: w.start, end: w.end, cover: "" }));
+    }
+    breaks[si] = { rows };
+    touch({ ...tactic, breaks });
+    setTplOpen(false);
+  };
+
+  /** Apply a Bookshelf break template to every station in a shift — fills each
+      station's "Breaks" windows (st.breaks) from the matching template section. */
+  const applyShiftBreakTemplate = (si: number, body: string) => {
+    const data = parseBreakTemplate(body);
+    const targets = (tactic.shifts[si] || [])
+      .map((st, sti) => ({ sti, win: data[normStation(st.station)] || [] }))
+      .filter((t) => t.win.length > 0);
+    if (!targets.length) return;
+    const dirty = targets.some(({ sti }) => normBreaks(tactic.shifts[si][sti].breaks).length > 0);
+    if (dirty && !confirm("Replace existing break windows for those stations?")) return;
+    const shifts = tactic.shifts.map((sh, i) =>
+      i !== si
+        ? sh
+        : sh.map((st) => {
+            const win = data[normStation(st.station)];
+            return win?.length ? { ...st, breaks: win.map((w) => ({ ...w })) } : st;
+          })
+    );
+    touch({ ...tactic, shifts });
   };
 
   const removeName = (si: number, sti: number, key: "photographers" | "cover" | "ls", name: string) =>
@@ -1381,6 +1410,30 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
             icon={<Users size={15} className="text-blue-600" />}
             action={
               <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
+                  <AlarmClock size={11} className="text-blue-500" />
+                  <select
+                    value=""
+                    onFocus={loadTpl}
+                    onChange={(e) => {
+                      const t = (tplList || []).find((x) => x.id === e.target.value);
+                      if (t) applyShiftBreakTemplate(si, t.body);
+                    }}
+                    className="bg-transparent text-xs font-semibold text-slate-700 outline-none"
+                  >
+                    <option value="">{tplList === null ? "Break template…" : "Break template…"}</option>
+                    {(tplList || []).map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}
+                      </option>
+                    ))}
+                    {tplList !== null && tplList.length === 0 && (
+                      <option value="" disabled>
+                        No break templates — create one in Bookshelf
+                      </option>
+                    )}
+                  </select>
+                </label>
                 {si > 0 && (
                   <label className="flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200">
                     <Copy size={11} className="text-blue-500" />
@@ -1634,7 +1687,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
 
       <Card>
         <CardHeader
-          title="Break schedule — Stations 1–3 (self-managed, no jumper cover)"
+          title="Break schedule — per-station (self-managed, no jumper cover)"
           icon={<Users size={15} className="text-blue-600" />}
         />
         <div className="flex flex-wrap items-center gap-2 px-4 pb-4">
@@ -1684,7 +1737,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
             <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-xl">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                 <p className="text-sm font-bold text-slate-700">
-                  Break schedule — Stations 1–3{tactic.shifts.length > 1 ? ` (Shift ${si + 1})` : ""}
+                  Break schedule{tactic.shifts.length > 1 ? ` (Shift ${si + 1})` : ""}
                 </p>
                 <Button variant="ghost" size="sm" onClick={() => setBreakEdit(null)}>
                   <X size={15} />
@@ -1712,10 +1765,47 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                   <Button variant="outline" size="sm" onClick={() => setFastGen((v) => !v)}>
                     <AlarmClock size={12} className="mr-1" /> Fast generate
                   </Button>
+                  <Button variant="outline" size="sm" onClick={() => setTplOpen((v) => !v)}>
+                    <BookOpen size={12} className="mr-1" /> From Bookshelf
+                  </Button>
                   <Button variant="outline" size="sm" className="ml-auto" onClick={() => addBreakRow(si, station)}>
                     <Plus size={12} className="mr-1" /> break
                   </Button>
                 </div>
+                {tplOpen && (
+                  <div className="rounded-md border border-blue-200 bg-blue-50/60 p-2.5">
+                    {tplList === null ? (
+                      <p className="text-xs text-slate-400">Loading templates…</p>
+                    ) : tplList.length === 0 ? (
+                      <p className="text-xs text-slate-500">
+                        No break templates yet — create one in your{" "}
+                        <a href="/bookshelf" className="font-medium text-blue-600 underline">Bookshelf</a>{" "}
+                        with the &quot;HYROX breaks&quot; category.
+                      </p>
+                    ) : (
+                      <div className="grid gap-1.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Applies to every station the template defines (Shift {si + 1})
+                        </p>
+                        {tplList.map((t) => (
+                          <button
+                            key={t.id}
+                            onClick={() => applyBreakTemplate(si, t.body)}
+                            className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-left text-sm hover:border-blue-300 hover:bg-blue-50/50"
+                          >
+                            <Download size={13} className="shrink-0 text-slate-400" />
+                            <span className="min-w-0">
+                              <span className="block truncate font-medium text-slate-800">{t.title}</span>
+                              <span className="block truncate text-xs text-slate-400">
+                                {breakTemplateSummary(parseBreakTemplate(t.body))}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {fastGen && (() => {
                   const st = (tactic.shifts[si] || []).find((x) => normStation(x.station) === station || x.station === station);
                   const crewN = (st?.photographers || []).length;
@@ -1823,7 +1913,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                   </p>
                 )}
                 </div>
-                {/* Break pool — members of stations 1–3 in the shift being edited
+                {/* Break pool — members of break stations in the shift being edited
                     who are not covering anyone (they cover each other) */}
                 {(() => {
                   const stationSet = new Set(BREAK_STATIONS);
@@ -1837,7 +1927,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                   return pool.length > 0 ? (
                     <aside className="shrink-0 rounded-md border border-slate-200 p-1.5">
                       <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                        Stations 1–3{tactic.shifts.length > 1 ? ` — Shift ${si + 1}` : ""}
+                        Break stations{tactic.shifts.length > 1 ? ` — Shift ${si + 1}` : ""}
                       </p>
                       <div className="flex flex-wrap gap-1">
                         {pool.map((p) => {

@@ -39,7 +39,7 @@ export async function sendWelcomeEmail(opts: {
       "",
       "For security, please change your password right away:",
       "1. Sign in with the temporary password above",
-      "2. Open Settings in the left sidebar",
+      "2. Click your name (top right) and open Settings",
       "3. In \"Change password\", enter your new password twice and click Update",
       "",
       "— Sportograf TL Tool",
@@ -60,7 +60,7 @@ export async function sendWelcomeEmail(opts: {
         <p style="color:#334155;font-size:14px;margin-top:20px"><b>Then set your own password:</b></p>
         <ol style="color:#475569;font-size:14px;padding-left:20px;line-height:1.6">
           <li>Sign in with the temporary password above</li>
-          <li>Open <b>Settings</b> in the left sidebar</li>
+          <li>Click your name (top right) and open <b>Settings</b></li>
           <li>In <b>Change password</b>, enter your new password twice and click <b>Update password</b></li>
         </ol>
         <p style="color:#94a3b8;font-size:12px;margin-top:24px">— Sportograf TL Tool</p>

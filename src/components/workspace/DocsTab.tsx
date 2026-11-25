@@ -38,7 +38,8 @@ export default function DocsTab({ event, patch, saving }: TabProps) {
   useEffect(() => {
     fetch("/api/templates")
       .then((r) => r.json())
-      .then((d) => setTemplates(d.templates || []))
+      // hyrox_breaks templates are structured data, not documents — applied in the tactic editor instead
+      .then((d) => setTemplates((d.templates || []).filter((t: TemplateDTO) => t.category !== "hyrox_breaks")))
       .catch(() => {});
   }, []);
 
