@@ -127,7 +127,7 @@ export default function EventWorkspace({
   return (
     <div>
       {/* Tab bar */}
-      <div className="sticky top-[53px] z-20 -mx-3 mb-4 border-b border-slate-200 bg-slate-50/95 px-3 backdrop-blur md:top-[61px] md:-mx-6 md:px-6">
+      <div className="sticky top-[61px] z-20 -mx-3 mb-4 border-b border-slate-200 bg-slate-50/95 px-3 backdrop-blur md:-mx-6 md:px-6">
         <div className="flex gap-1 overflow-x-auto py-2">
           {visibleTabs.map((t) => {
             const Icon = t.icon;

@@ -172,11 +172,13 @@ const fmtD = (d: string) => {
   return dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 };
 
-export function TacticPdf({ event }: { event: EventDTO }) {
+export function TacticPdf({ event, onlyDate, dayNum }: { event: EventDTO; onlyDate?: string; dayNum?: number }) {
   const start = event.date?.slice(0, 10) || "";
   const end = (event.endDate || "").slice(0, 10);
-  const hyroxDays = (event.hyrox || []).filter(
-    (d) => d.published && (!start || (d.date >= start && (!end || d.date <= end)))
+  const hyroxDays = (event.hyrox || []).filter((d) =>
+    // a date-scoped export renders that day regardless of publish state (TL-only route);
+    // the full export stays limited to published days inside the event range
+    onlyDate ? d.date === onlyDate : d.published && (!start || (d.date >= start && (!end || d.date <= end)))
   );
   const pubDays = (event.tacticDays || []).filter((d) => d.published);
   const legacyRows = !pubDays.length && event.tacticPublished ? event.tactic || [] : [];
@@ -188,7 +190,7 @@ export function TacticPdf({ event }: { event: EventDTO }) {
       <Page size="A4" orientation="landscape" style={s.page}>
         <View style={s.hero}>
           <Text style={s.heroKicker}>Sportograf · Event briefing</Text>
-          <Text style={s.heroTitle}>{event.name} — Tactic</Text>
+          <Text style={s.heroTitle}>{event.name} — Tactic{dayNum ? ` · DAY ${dayNum}` : ""}</Text>
           <Text style={s.heroMeta}>{[when, event.location, event.country, tl && `TL: ${tl}`].filter(Boolean).join("   ·   ")}</Text>
         </View>
 

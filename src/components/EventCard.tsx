@@ -44,14 +44,14 @@ export default function EventCard({
     <Link href={`/events/${e.id}`} className="group block h-full">
       <Card
         className={cn(
-          "flex h-full flex-col p-4 transition-all duration-150 group-hover:-translate-y-0.5 group-hover:border-slate-300 group-hover:shadow-lg",
+          "flex h-full flex-col p-3 transition-all duration-150 group-hover:-translate-y-0.5 group-hover:border-slate-300 group-hover:shadow-lg sm:p-4",
           dim && "opacity-70"
         )}
       >
-        <div className="flex gap-3">
+        <div className="flex gap-2.5 sm:gap-3">
           {/* Calendar date tile */}
           {start ? (
-            <div className="w-16 shrink-0 self-start overflow-hidden rounded-lg border border-slate-200 text-center shadow-sm">
+            <div className="w-14 shrink-0 self-start overflow-hidden rounded-lg border border-slate-200 text-center shadow-sm sm:w-16">
               <div className="bg-slate-900 py-1 text-[10px] font-bold tracking-widest text-white">
                 {end && end.month !== start.month ? `${start.month}–${end.month}` : start.month}
               </div>
@@ -59,7 +59,7 @@ export default function EventCard({
                 <span
                   className={cn(
                     "block font-bold text-slate-900",
-                    end ? "text-base" : "text-xl"
+                    end ? "text-sm sm:text-base" : "text-lg sm:text-xl"
                   )}
                 >
                   {start.day}
@@ -71,7 +71,7 @@ export default function EventCard({
               </div>
             </div>
           ) : (
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center self-start rounded-lg border border-dashed border-slate-200 bg-slate-50 text-slate-300">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center self-start rounded-lg border border-dashed border-slate-200 bg-slate-50 text-slate-300 sm:h-16 sm:w-16">
               <CalendarDays size={18} />
             </div>
           )}
@@ -86,11 +86,11 @@ export default function EventCard({
                 {e.type}
               </span>
             </div>
-            <h3 className="line-clamp-2 font-semibold leading-snug text-slate-900">
+            <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900 sm:text-base">
               {e.name}
             </h3>
             {e.location && (
-              <p className="mt-1 flex items-center gap-1 truncate text-xs text-slate-500">
+              <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500 sm:mt-1">
                 <MapPin size={11} className="shrink-0" />
                 {e.location}
                 {e.country ? `, ${e.country}` : ""}
@@ -101,7 +101,7 @@ export default function EventCard({
 
         {/* Footer: team chips + position count */}
         <div className="mt-auto">
-        <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+        <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2 sm:mt-3 sm:pt-3">
           <div className="flex min-w-0 items-center">
             {shown.length === 0 ? (
               <span className="text-[11px] text-slate-400">No team yet</span>
@@ -111,13 +111,13 @@ export default function EventCard({
                   <span
                     key={`${a}-${i}`}
                     title={a}
-                    className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[8px] font-bold text-slate-600"
+                    className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-slate-200 text-[8px] font-bold text-slate-600 sm:h-6 sm:w-6"
                   >
                     {a.slice(0, 3)}
                   </span>
                 ))}
                 {extra > 0 && (
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-[8px] font-bold text-slate-500">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-slate-100 text-[8px] font-bold text-slate-500 sm:h-6 sm:w-6">
                     +{extra}
                   </span>
                 )}

@@ -346,6 +346,8 @@ function NameCell({
     picked: { name: string; src: { si: number; sti: number; key: "photographers" | "cover" | "ls" } | null } | null;
     pick: (name: string, src: { si: number; sti: number; key: "photographers" | "cover" | "ls" } | null) => void;
     drop: () => void;
+    /** This cell is the selected target — pool taps land here */
+    selected?: boolean;
   };
 }) {
   const [over, setOver] = useState(false);
@@ -365,11 +367,12 @@ function NameCell({
         const name = e.dataTransfer.getData("text/plain").trim();
         if (name) onDropName(name);
       } : undefined}
-      onClick={droppable && tap?.picked ? tap.drop : undefined}
+      onClick={droppable && tap ? tap.drop : undefined}
       className={cn(
         "flex h-full min-h-7 w-full flex-wrap items-center gap-1 rounded px-1 py-0.5",
         over && "bg-blue-50 ring-1 ring-blue-300",
-        droppable && tap?.picked && "ring-1 ring-blue-200 cursor-pointer"
+        droppable && tap?.picked && "ring-1 ring-blue-200 cursor-pointer",
+        droppable && tap?.selected && "ring-2 ring-blue-500 cursor-pointer bg-blue-50/60"
       )}
     >
       {values.map((v, i) => (
@@ -387,8 +390,8 @@ function NameCell({
         >
           {v}
           <button
-            onClick={() => onRemove(v)}
-            className="hidden text-white/70 hover:text-white group-hover:inline"
+            onClick={(e) => { e.stopPropagation(); onRemove(v); }}
+            className="inline px-0.5 text-white/70 hover:text-white sm:hidden sm:group-hover:inline"
             title="Remove"
           >
             ×
@@ -396,7 +399,9 @@ function NameCell({
         </span>
       ))}
       {values.length === 0 && droppable && (
-        <span className="text-[11px] text-slate-300">{tap?.picked ? "tap to assign" : "drop here"}</span>
+        <span className="text-[11px] text-slate-300">
+          {tap?.selected ? "selected — tap names in Team" : tap?.picked ? "tap to assign" : "drop here"}
+        </span>
       )}
     </div>
   );
@@ -1201,6 +1206,25 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
     setPicked(null);
   };
 
+  // Target-first assign (phone-friendly): tap a cell's empty space to select it
+  // (blue ring), then tap names in the Team pool — each tap drops into the
+  // selected cell. Tapping the same cell again deselects.
+  const [target, setTarget] = useState<CellSrc | null>(null);
+  const cellTap = (si: number, sti: number, key: CellSrc["key"]) => {
+    if (picked) { tapDrop(si, sti, key); return; }
+    setTarget((t) => (t && sameSrc(t, { si, sti, key }) ? null : { si, sti, key }));
+  };
+  const isTarget = (si: number, sti: number, key: CellSrc["key"]) =>
+    !!target && sameSrc(target, { si, sti, key });
+  const poolTap = (tag: string) => {
+    if (target) {
+      dragSrcRef.current = null; // pool assign, not a move
+      dropName(target.si, target.sti, target.key, tag);
+    } else {
+      tapPick(tag, null);
+    }
+  };
+
   /**
    * Drop a name into a cell. If it was dragged out of another cell, it is MOVED —
    * removed from the source and added to the target in a single update so dedupe
@@ -1269,12 +1293,160 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   }
   dupAlerts.sort((a, b) => a.name.localeCompare(b.name));
 
+  // Shared cell renderers — used by both the desktop table and the mobile station cards
+  const photoCell = (si: number, sti: number, st: HyroxStationPlan) =>
+    isExternal(st.station) ? (
+      /* External crew — whole cell is an LS drop zone; assigned members allowed */
+      <NameCell
+        values={st.photographers}
+        onDropName={(n) => dropName(si, sti, "photographers", n)}
+        onRemove={(n) => removeName(si, sti, "photographers", n)}
+        onDragChip={() => { dragSrcRef.current = { si, sti, key: "photographers" }; }}
+        tap={{ src: { si, sti, key: "photographers" }, picked, pick: tapPick, drop: () => cellTap(si, sti, "photographers"), selected: isTarget(si, sti, "photographers") }}
+        chipClass={() => "bg-amber-400 !text-slate-900"}
+      />
+    ) : st.station === "Finish" ? (
+      /* Split cell: photographers zone | LS zone */
+      <div className="grid grid-cols-2 divide-x divide-slate-200">
+        <div className="pr-2">
+          <NameCell
+            values={st.photographers}
+            onDropName={(n) => dropName(si, sti, "photographers", n)}
+            onRemove={(n) => removeName(si, sti, "photographers", n)}
+            onDragChip={() => { dragSrcRef.current = { si, sti, key: "photographers" }; }}
+            tap={{ src: { si, sti, key: "photographers" }, picked, pick: tapPick, drop: () => cellTap(si, sti, "photographers"), selected: isTarget(si, sti, "photographers") }}
+            chipClass={(v) => (teamTags.has(v) ? "bg-green-600" : "bg-amber-400 !text-slate-900")}
+          />
+        </div>
+        <div className="pl-2">
+          <p className="mb-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-600">LS</p>
+          <NameCell
+            values={st.ls || []}
+            onDropName={(n) => dropName(si, sti, "ls", n)}
+            onRemove={(n) => removeName(si, sti, "ls", n)}
+            onDragChip={() => { dragSrcRef.current = { si, sti, key: "ls" }; }}
+            tap={{ src: { si, sti, key: "ls" }, picked, pick: tapPick, drop: () => cellTap(si, sti, "ls"), selected: isTarget(si, sti, "ls") }}
+            chipClass={() => "bg-amber-400 !text-slate-900"}
+          />
+        </div>
+      </div>
+    ) : (
+      <div className="flex flex-wrap items-center gap-1">
+        <NameCell
+          values={st.photographers}
+          onDropName={(n) => dropName(si, sti, "photographers", n)}
+          onRemove={(n) => removeName(si, sti, "photographers", n)}
+          onDragChip={() => { dragSrcRef.current = { si, sti, key: "photographers" }; }}
+          tap={{ src: { si, sti, key: "photographers" }, picked, pick: tapPick, drop: () => cellTap(si, sti, "photographers"), selected: isTarget(si, sti, "photographers") }}
+          chipClass={(v) => (teamTags.has(v) ? "bg-green-600" : "bg-amber-400 !text-slate-900")}
+        />
+      </div>
+    );
+
+  const breaksCell = (si: number, sti: number, st: HyroxStationPlan) =>
+    isExternal(st.station) ? (
+      <span className="text-xs text-slate-300">—</span>
+    ) : (
+      <div className="space-y-1">
+        {normBreaks(st.breaks as unknown as string | BreakRange[]).map((br, bi) => (
+          <div key={bi} className="flex items-center gap-1">
+            <Input
+              type="time"
+              value={br.start}
+              className="w-24"
+              onChange={(e) => {
+                const breaks = normBreaks(st.breaks as unknown as string | BreakRange[]).map((x, i) =>
+                  i === bi ? { ...x, start: e.target.value } : x
+                );
+                setShiftStation(si, sti, { breaks });
+              }}
+            />
+            <span className="text-xs text-slate-400">–</span>
+            <Input
+              type="time"
+              value={br.end}
+              className="w-24"
+              onChange={(e) => {
+                const breaks = normBreaks(st.breaks as unknown as string | BreakRange[]).map((x, i) =>
+                  i === bi ? { ...x, end: e.target.value } : x
+                );
+                setShiftStation(si, sti, { breaks });
+              }}
+            />
+            <button
+              title="Remove break"
+              onClick={() =>
+                setShiftStation(si, sti, {
+                  breaks: normBreaks(st.breaks as unknown as string | BreakRange[]).filter((_, i) => i !== bi),
+                })
+              }
+              className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        ))}
+        <button
+          title="Add break"
+          onClick={() =>
+            setShiftStation(si, sti, {
+              breaks: [...normBreaks(st.breaks as unknown as string | BreakRange[]), { start: "", end: "" }],
+            })
+          }
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+        >
+          <Plus size={12} /> break
+        </button>
+      </div>
+    );
+
+  const coverCell = (si: number, sti: number, st: HyroxStationPlan) =>
+    isExternal(st.station) ? (
+      <span className="text-xs text-slate-300">—</span>
+    ) : (
+      <NameCell
+        values={st.cover}
+        onDropName={(n) => dropName(si, sti, "cover", n)}
+        onRemove={(n) => removeName(si, sti, "cover", n)}
+        onDragChip={() => { dragSrcRef.current = { si, sti, key: "cover" }; }}
+        tap={{ src: { si, sti, key: "cover" }, picked, pick: tapPick, drop: () => cellTap(si, sti, "cover"), selected: isTarget(si, sti, "cover") }}
+        chipClass={(v) => (teamTags.has(v) ? "bg-blue-600" : "bg-amber-400 !text-slate-900")}
+      />
+    );
+
+  // In-range event dates, sorted — shared by the day dropdown and the PDF picker
+  // so "DAY n" numbering matches the downloaded filenames
+  const inRangeDates = days
+    .map((d) => d.date)
+    .filter(
+      (dt) =>
+        dt >= event.date.slice(0, 10) &&
+        (!event.endDate || dt <= event.endDate.slice(0, 10))
+    )
+    .sort();
+
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       {/* Day selector — each HYROX day has its own tactic */}
       {days.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-medium text-slate-500">Day:</span>
+          {/* Mobile: dropdown instead of pill row */}
+          <Select
+            value={activeDate}
+            onChange={(e) => setActiveDate(e.target.value)}
+            className="h-9 w-40 text-xs sm:hidden"
+          >
+            {days.map((d) => {
+              const n = inRangeDates.indexOf(d.date);
+              return (
+                <option key={d.date} value={d.date}>
+                  {n >= 0 ? `DAY ${n + 1} · ` : ""}{fmtDate(d.date)}{n < 0 ? " *" : ""}
+                </option>
+              );
+            })}
+          </Select>
+          <div className="hidden sm:contents">
           {days.map((d) => {
             const inRange =
               d.date >= event.date.slice(0, 10) &&
@@ -1298,6 +1470,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
               </button>
             );
           })}
+          </div>
           <button
             type="button"
             onClick={togglePublished}
@@ -1313,20 +1486,30 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
           <span className={`text-xs font-semibold ${published ? "text-emerald-600" : "text-slate-400"}`}>
             {published ? "Published" : "Hidden"}
           </span>
-          <a
-            href={`/api/events/${event.id}/tactic-xlsx`}
-            title="Download the filled momo.xlsx workbook — all tactic days, switch groups, breaks, control tower and crew"
-            className="flex items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white hover:bg-emerald-700"
-          >
-            <Download size={12} /> XLSX
-          </a>
-          <a
-            href={`/api/events/${event.id}/tactic-pdf`}
-            title="Download the tactic as a styled PDF"
+          <label
+            title="Pick a day, then download that day's tactic as a styled PDF"
             className="flex items-center gap-1 rounded-md bg-slate-700 px-2 py-1 text-xs font-semibold text-white hover:bg-slate-600"
           >
-            <Download size={12} /> PDF
-          </a>
+            <Download size={12} />
+            <select
+              value=""
+              onChange={(e) => {
+                const d = e.target.value;
+                if (!d) return;
+                const a = document.createElement("a");
+                a.href = `/api/events/${event.id}/tactic-pdf?date=${d}`;
+                a.click();
+              }}
+              className="cursor-pointer bg-transparent text-xs font-semibold outline-none [&>option]:text-slate-900"
+            >
+              <option value="">PDF — pick day…</option>
+              {inRangeDates.map((dt, i) => (
+                <option key={dt} value={dt}>
+                  DAY {i + 1} · {fmtDate(dt)}
+                </option>
+              ))}
+            </select>
+          </label>
           <span className="flex items-center gap-1 text-xs font-medium text-slate-500">
             Call time
             <Input
@@ -1466,7 +1649,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
               </div>
             }
           />
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
@@ -1487,130 +1670,48 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                         onChange={(v) => setShiftStation(si, sti, { note: v })}
                       />
                     </td>
-                    <td className="px-2 py-1.5">
-                      {isExternal(st.station) ? (
-                        /* External crew — whole cell is an LS drop zone; assigned members allowed */
-                        <NameCell
-                          values={st.photographers}
-                          onDropName={(n) => dropName(si, sti, "photographers", n)}
-                          onRemove={(n) => removeName(si, sti, "photographers", n)}
-                          onDragChip={() => { dragSrcRef.current = { si, sti, key: "photographers" }; }}
-                          tap={{ src: { si, sti, key: "photographers" }, picked, pick: tapPick, drop: () => tapDrop(si, sti, "photographers") }}
-                          chipClass={() => "bg-amber-400 !text-slate-900"}
-                        />
-                      ) : st.station === "Finish" ? (
-                        /* Split cell: photographers zone | LS zone */
-                        <div className="grid grid-cols-2 divide-x divide-slate-200">
-                          <div className="pr-2">
-                            <NameCell
-                              values={st.photographers}
-                              onDropName={(n) => dropName(si, sti, "photographers", n)}
-                              onRemove={(n) => removeName(si, sti, "photographers", n)}
-                              onDragChip={() => { dragSrcRef.current = { si, sti, key: "photographers" }; }}
-                          tap={{ src: { si, sti, key: "photographers" }, picked, pick: tapPick, drop: () => tapDrop(si, sti, "photographers") }}
-                              chipClass={(v) => (teamTags.has(v) ? "bg-green-600" : "bg-amber-400 !text-slate-900")}
-                            />
-                          </div>
-                          <div className="pl-2">
-                            <p className="mb-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-600">LS</p>
-                            <NameCell
-                              values={st.ls || []}
-                              onDropName={(n) => dropName(si, sti, "ls", n)}
-                              onRemove={(n) => removeName(si, sti, "ls", n)}
-                              onDragChip={() => { dragSrcRef.current = { si, sti, key: "ls" }; }}
-                              tap={{ src: { si, sti, key: "ls" }, picked, pick: tapPick, drop: () => tapDrop(si, sti, "ls") }}
-                              chipClass={() => "bg-amber-400 !text-slate-900"}
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-wrap items-center gap-1">
-                          <NameCell
-                            values={st.photographers}
-                            onDropName={(n) => dropName(si, sti, "photographers", n)}
-                            onRemove={(n) => removeName(si, sti, "photographers", n)}
-                            onDragChip={() => { dragSrcRef.current = { si, sti, key: "photographers" }; }}
-                          tap={{ src: { si, sti, key: "photographers" }, picked, pick: tapPick, drop: () => tapDrop(si, sti, "photographers") }}
-                            chipClass={(v) => (teamTags.has(v) ? "bg-green-600" : "bg-amber-400 !text-slate-900")}
-                          />
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-1.5">
-                      {isExternal(st.station) ? (
-                        <span className="text-xs text-slate-300">—</span>
-                      ) : (
-                      <div className="space-y-1">
-                        {normBreaks(st.breaks as unknown as string | BreakRange[]).map((br, bi) => (
-                          <div key={bi} className="flex items-center gap-1">
-                            <Input
-                              type="time"
-                              value={br.start}
-                              className="w-24"
-                              onChange={(e) => {
-                                const breaks = normBreaks(st.breaks as unknown as string | BreakRange[]).map((x, i) =>
-                                  i === bi ? { ...x, start: e.target.value } : x
-                                );
-                                setShiftStation(si, sti, { breaks });
-                              }}
-                            />
-                            <span className="text-xs text-slate-400">–</span>
-                            <Input
-                              type="time"
-                              value={br.end}
-                              className="w-24"
-                              onChange={(e) => {
-                                const breaks = normBreaks(st.breaks as unknown as string | BreakRange[]).map((x, i) =>
-                                  i === bi ? { ...x, end: e.target.value } : x
-                                );
-                                setShiftStation(si, sti, { breaks });
-                              }}
-                            />
-                            <button
-                              title="Remove break"
-                              onClick={() =>
-                                setShiftStation(si, sti, {
-                                  breaks: normBreaks(st.breaks as unknown as string | BreakRange[]).filter((_, i) => i !== bi),
-                                })
-                              }
-                              className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          title="Add break"
-                          onClick={() =>
-                            setShiftStation(si, sti, {
-                              breaks: [...normBreaks(st.breaks as unknown as string | BreakRange[]), { start: "", end: "" }],
-                            })
-                          }
-                          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                        >
-                          <Plus size={12} /> break
-                        </button>
-                      </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-1.5">
-                      {isExternal(st.station) ? (
-                        <span className="text-xs text-slate-300">—</span>
-                      ) : (
-                        <NameCell
-                          values={st.cover}
-                          onDropName={(n) => dropName(si, sti, "cover", n)}
-                          onRemove={(n) => removeName(si, sti, "cover", n)}
-                          onDragChip={() => { dragSrcRef.current = { si, sti, key: "cover" }; }}
-                          tap={{ src: { si, sti, key: "cover" }, picked, pick: tapPick, drop: () => tapDrop(si, sti, "cover") }}
-                          chipClass={(v) => (teamTags.has(v) ? "bg-blue-600" : "bg-amber-400 !text-slate-900")}
-                        />
-                      )}
-                    </td>
+                    <td className="px-2 py-1.5">{photoCell(si, sti, st)}</td>
+                    <td className="px-2 py-1.5">{breaksCell(si, sti, st)}</td>
+                    <td className="px-2 py-1.5">{coverCell(si, sti, st)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+          {/* Mobile: stacked station cards instead of the wide table */}
+          <div className="space-y-2 px-3 pb-3 sm:hidden">
+            {stations.map((st, sti) => (
+              <div key={st.station} className="rounded-lg border border-slate-200">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2">
+                  <span className="text-sm font-bold text-slate-800">{st.station}</span>
+                  <NoteEditor
+                    label="Note"
+                    value={st.note || ""}
+                    onChange={(v) => setShiftStation(si, sti, { note: v })}
+                  />
+                </div>
+                <div className="space-y-2.5 px-3 py-2.5">
+                  <div>
+                    {!isExternal(st.station) && (
+                      <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Photographers</p>
+                    )}
+                    {photoCell(si, sti, st)}
+                  </div>
+                  {!isExternal(st.station) && (
+                    <>
+                      <div>
+                        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Breaks</p>
+                        {breaksCell(si, sti, st)}
+                      </div>
+                      <div>
+                        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Cover</p>
+                        {coverCell(si, sti, st)}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </Card>
       ))}
@@ -1961,14 +2062,18 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
       })()}
 
       </div>
-      {/* Photographer pool — sticky right column, drag onto any cell */}
+      {/* Photographer pool — docked bottom panel on mobile, sticky right column on desktop */}
       {event.photographers.length > 0 && (
-        <aside className="w-full shrink-0 space-y-2 md:sticky md:top-20 md:w-60 md:self-start">
-        <div className="rounded-lg border border-slate-200 bg-white p-2">
+        <aside className="sticky bottom-[calc(3.25rem+env(safe-area-inset-bottom))] z-20 w-full shrink-0 space-y-2 md:bottom-auto md:top-20 md:w-60 md:self-start">
+        <div className="rounded-lg border border-slate-200 bg-white p-2 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] md:shadow-none">
           <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Team{picked?.name ? ` — ${picked.name} picked` : ""}
+            Team{picked?.name
+              ? ` — ${picked.name} picked`
+              : target
+                ? ` — tap names → ${tactic.shifts[target.si]?.[target.sti]?.station || "selected box"}`
+                : ""}
           </p>
-          <div className="grid grid-cols-3 gap-1 overflow-y-auto md:grid-cols-2" style={{ maxHeight: "calc(100vh - 140px)" }}>
+          <div className="grid max-h-28 grid-cols-3 gap-1 overflow-y-auto md:max-h-[calc(100vh-140px)] md:grid-cols-2">
             {event.photographers.map((p) => {
               const tag = p.acronym || p.name;
               const covering = coveringSet.has(tag);
@@ -1978,7 +2083,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                   key={p.id}
                   draggable
                   onDragStart={(e) => e.dataTransfer.setData("text/plain", tag)}
-                  onClick={() => tapPick(tag, null)}
+                  onClick={() => poolTap(tag)}
                   title={covering ? "Covering (jumper)" : assigned ? "Assigned to a station" : "Drag or tap to assign"}
                   className={cn(
                     "cursor-grab truncate rounded px-2 py-1 text-left text-[11px] font-bold text-white active:cursor-grabbing",

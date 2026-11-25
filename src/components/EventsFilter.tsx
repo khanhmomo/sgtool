@@ -65,7 +65,7 @@ export default function EventsFilter({
 
   const pill = (active: boolean) =>
     cn(
-      "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors",
+      "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors",
       active
         ? "border-slate-900 bg-slate-900 text-white"
         : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
@@ -116,8 +116,8 @@ export default function EventsFilter({
         </div>
       </div>
 
-      {/* Status pills */}
-      <div className="flex flex-wrap items-center gap-1.5">
+      {/* Status pills — horizontal scroll on mobile, wraps on desktop */}
+      <div className="-mx-3 flex flex-nowrap items-center gap-1.5 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
         <button onClick={() => go({ status: "" })} className={pill(!status)}>
           All
           <span className={countCls(!status)}>{total}</span>
