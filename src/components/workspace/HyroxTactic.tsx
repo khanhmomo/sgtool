@@ -1431,11 +1431,10 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
       {days.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-medium text-slate-500">Day:</span>
-          {/* Mobile: dropdown instead of pill row */}
           <Select
             value={activeDate}
             onChange={(e) => setActiveDate(e.target.value)}
-            className="h-9 w-40 text-xs sm:hidden"
+            className="h-10 min-w-0 flex-1 px-2 pr-7 text-sm sm:h-9 sm:w-56 sm:flex-none sm:text-xs"
           >
             {days.map((d) => {
               const n = inRangeDates.indexOf(d.date);
@@ -1446,31 +1445,6 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
               );
             })}
           </Select>
-          <div className="hidden sm:contents">
-          {days.map((d) => {
-            const inRange =
-              d.date >= event.date.slice(0, 10) &&
-              (!event.endDate || d.date <= event.endDate.slice(0, 10));
-            return (
-              <button
-                key={d.date}
-                onClick={() => setActiveDate(d.date)}
-                title={inRange ? undefined : "Outside event dates — copy it into an event day with 'Copy day from…'"}
-                className={cn(
-                  "rounded-md px-2.5 py-1 text-xs font-semibold",
-                  d.date === activeDate
-                    ? "bg-slate-900 text-white"
-                    : inRange
-                      ? "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
-                      : "bg-amber-50 text-amber-700 ring-1 ring-dashed ring-amber-300 hover:bg-amber-100"
-                )}
-              >
-                {fmtDate(d.date)}
-                {!inRange && " *"}
-              </button>
-            );
-          })}
-          </div>
           <button
             type="button"
             onClick={togglePublished}
