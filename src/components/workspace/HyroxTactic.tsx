@@ -868,23 +868,45 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                 <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   Break schedule{shifts.length > 1 ? ` (Shift ${si + 1})` : ""}
                 </p>
-                <div className="hidden overflow-x-auto rounded-md border border-slate-900 sm:block">
-                  <table className="w-full border-collapse text-left text-xs">
-                    <thead>
-                      <tr className="bg-[#FFED00] text-[10px] uppercase tracking-wider text-slate-900">
-                        <th className="border border-slate-900 px-3 py-2">Station</th>
-                        <th className="border border-slate-900 px-3 py-2">Break</th>
-                        <th className="border border-slate-900 px-3 py-2">Covered by</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {BREAK_STATIONS.flatMap((station) => {
-                        const list = (t.rows?.[station] || []).filter(nonEmptyBreak);
-                        return list.map((b, bi) => (
-                          <tr key={`${station}-${bi}`} className="text-slate-900">
-                            {bi === 0 && (
+                {(() => {
+                  // Matrix layout like the PDF: one column per break window,
+                  // one row per station, cell = who covers that window.
+                  const windows: string[] = [];
+                  const table = BREAK_STATIONS.map((station) => {
+                    const m: Record<string, string> = {};
+                    (t.rows?.[station] || []).forEach((b) => {
+                      if (b.start && b.end) {
+                        const k = `${b.start}–${b.end}`;
+                        if (!windows.includes(k)) windows.push(k);
+                        m[k] = b.cover || "";
+                      } else if (b.cover) {
+                        m.__self = b.cover;
+                      }
+                    });
+                    return { station, m };
+                  }).filter(({ m }) => Object.keys(m).length > 0);
+                  if (!table.length) return null;
+                  const hasSelf = table.some(({ m }) => m.__self);
+                  return (
+                    <div className="overflow-x-auto rounded-md border border-slate-900">
+                      <table className="w-full border-collapse text-left text-xs">
+                        <thead>
+                          <tr className="bg-[#FFED00] text-[10px] uppercase tracking-wider text-slate-900">
+                            <th className="border border-slate-900 px-3 py-2">Station</th>
+                            {windows.map((w) => (
+                              <th key={w} className="border border-slate-900 px-3 py-2 whitespace-nowrap">
+                                {fmtT(w.split("–")[0])}–{fmtT(w.split("–")[1])}
+                              </th>
+                            ))}
+                            {hasSelf && (
+                              <th className="border border-slate-900 px-3 py-2">Self manage</th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {table.map(({ station, m }) => (
+                            <tr key={station} className="text-slate-900">
                               <td
-                                rowSpan={list.length}
                                 className={cn(
                                   "border border-slate-900 px-3 py-2 font-bold whitespace-nowrap",
                                   STATION_PASTEL[station] || "bg-slate-50"
@@ -892,49 +914,23 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                               >
                                 {station}
                               </td>
-                            )}
-                            <td className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">
-                              {fmtT(b.start)}–{fmtT(b.end)}
-                            </td>
-                            <td className="border border-slate-900 px-3 py-2 font-bold">
-                              {b.cover || "—"}
-                            </td>
-                          </tr>
-                        ));
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                {/* Mobile: stacked station cards, one line per break */}
-                <div className="space-y-1.5 sm:hidden">
-                  {BREAK_STATIONS.map((station) => {
-                    const list = (t.rows?.[station] || []).filter(nonEmptyBreak);
-                    if (!list.length) return null;
-                    return (
-                      <div
-                        key={station}
-                        className={cn(
-                          "rounded-md border border-slate-900 p-2.5 text-slate-900",
-                          STATION_PASTEL[station] || "bg-slate-50"
-                        )}
-                      >
-                        <p className="mb-1 text-xs font-black uppercase tracking-wide">
-                          <span className="rounded bg-[#FFED00] px-1.5 py-0.5">{station}</span>
-                        </p>
-                        <div className="space-y-0.5 text-xs font-bold">
-                          {list.map((b, bi) => (
-                            <div key={bi} className="flex items-baseline gap-2">
-                              <span className="shrink-0 whitespace-nowrap opacity-80">
-                                {fmtT(b.start)}–{fmtT(b.end)}
-                              </span>
-                              <span>{b.cover || "—"}</span>
-                            </div>
+                              {windows.map((w) => (
+                                <td key={w} className="border border-slate-900 px-3 py-2 font-bold">
+                                  {m[w] || "—"}
+                                </td>
+                              ))}
+                              {hasSelf && (
+                                <td className="border border-slate-900 px-3 py-2 font-bold">
+                                  {m.__self || "—"}
+                                </td>
+                              )}
+                            </tr>
                           ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </div>
             ) : null
           )}

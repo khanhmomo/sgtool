@@ -16,31 +16,30 @@ const C = {
 
 const s = StyleSheet.create({
   page: { padding: 0, fontSize: 9, fontFamily: "Helvetica", color: C.ink, backgroundColor: "#ffffff" },
-  hero: { backgroundColor: C.head, padding: "22 30 16 30", borderBottomWidth: 4, borderBottomColor: C.blue },
-  heroKicker: { fontSize: 7, fontFamily: "Helvetica-Bold", color: C.blue, letterSpacing: 2.4, textTransform: "uppercase" },
-  heroTitle: { fontSize: 19, fontFamily: "Helvetica-Bold", color: "#ffffff", marginTop: 5 },
-  heroMeta: { fontSize: 8.5, color: "#cbd5e1", marginTop: 5 },
-  body: { padding: "16 30 24 30" },
-  dayCard: { borderWidth: 1, borderColor: C.line, borderRadius: 7, marginBottom: 14, padding: "10 12 12 12" },
-  dayTitle: { fontSize: 12, fontFamily: "Helvetica-Bold", color: C.ink },
+  hero: { backgroundColor: C.head, padding: "10 24 8 24", borderBottomWidth: 3, borderBottomColor: C.blue },
+  heroTitle: { fontSize: 14, fontFamily: "Helvetica-Bold", color: "#ffffff" },
+  heroMeta: { fontSize: 8, color: "#cbd5e1", marginTop: 3 },
+  body: { padding: "8 24 12 24" },
+  dayCard: { borderWidth: 1, borderColor: C.line, borderRadius: 7, marginBottom: 8, padding: "7 10 8 10" },
+  dayTitle: { fontSize: 11, fontFamily: "Helvetica-Bold", color: C.ink },
   callChip: { fontSize: 8.5, fontFamily: "Helvetica-Bold", color: C.blue, backgroundColor: C.blueSoft, borderRadius: 3, padding: "2 6" },
   dayNote: { fontSize: 8.5, color: C.sub, marginTop: 5 },
-  shiftPill: { alignSelf: "flex-start", fontSize: 8, fontFamily: "Helvetica-Bold", color: C.ink, backgroundColor: C.yellow, borderRadius: 3, padding: "3 8", marginTop: 8, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.8 },
-  table: { borderWidth: 1, borderColor: C.line, borderRadius: 5, marginTop: 2, marginBottom: 8 },
+  shiftPill: { alignSelf: "flex-start", fontSize: 8, fontFamily: "Helvetica-Bold", color: C.ink, backgroundColor: C.yellow, borderRadius: 3, padding: "2 7", marginTop: 5, marginBottom: 3, textTransform: "uppercase", letterSpacing: 0.8 },
+  table: { borderWidth: 1, borderColor: C.line, borderRadius: 5, marginTop: 2, marginBottom: 5 },
   tr: { flexDirection: "row", borderBottomWidth: 0.6, borderBottomColor: C.line },
-  thRow: { flexDirection: "row", backgroundColor: C.head, borderTopLeftRadius: 4, borderTopRightRadius: 4, paddingVertical: 5, minHeight: 20, alignItems: "center" },
+  thRow: { flexDirection: "row", backgroundColor: C.head, borderTopLeftRadius: 4, borderTopRightRadius: 4, paddingVertical: 3.5, minHeight: 16, alignItems: "center" },
   thCell: { paddingHorizontal: 7 },
   thTxt: { color: "#e2e8f0", fontSize: 6.8, fontFamily: "Helvetica-Bold", textTransform: "uppercase" },
-  td: { paddingVertical: 6, paddingHorizontal: 7, borderRightWidth: 0.6, borderRightColor: C.line },
+  td: { paddingVertical: 4.5, paddingHorizontal: 7, borderRightWidth: 0.6, borderRightColor: C.line },
   tdTxt: { fontSize: 8.5 },
   station: { fontFamily: "Helvetica-Bold", fontSize: 8.5 },
   bold: { fontFamily: "Helvetica-Bold", color: C.ink },
   dim: { color: C.sub, fontSize: 8 },
   tiny: { fontSize: 7.5, color: C.sub },
-  sectionLabel: { fontSize: 7, fontFamily: "Helvetica-Bold", color: C.sub, textTransform: "uppercase", letterSpacing: 1.1, marginTop: 8, marginBottom: 3 },
+  sectionLabel: { fontSize: 7, fontFamily: "Helvetica-Bold", color: C.sub, textTransform: "uppercase", letterSpacing: 1.1, marginTop: 6, marginBottom: 2 },
   arrow: { fontSize: 11, fontFamily: "Helvetica-Bold", color: C.blue, textAlign: "center" },
   groupName: { fontFamily: "Helvetica-Bold", fontSize: 8.5, color: C.blue },
-  footer: { marginTop: 10, paddingTop: 6, borderTopWidth: 0.6, borderTopColor: C.line, fontSize: 6.5, color: C.faint },
+  footer: { marginTop: 6, paddingTop: 4, borderTopWidth: 0.6, borderTopColor: C.line, fontSize: 6.5, color: C.faint },
 });
 
 const normStation = (n: string) => (n || "").replace(/\s*\(optional\)\s*/gi, "").trim();
@@ -189,15 +188,14 @@ export function TacticPdf({ event, onlyDate, dayNum }: { event: EventDTO; onlyDa
     <Document title={`${event.name} — Tactic`} author="Sportograf TL">
       <Page size="A4" orientation="landscape" style={s.page}>
         <View style={s.hero}>
-          <Text style={s.heroKicker}>Sportograf · Event briefing</Text>
           <Text style={s.heroTitle}>{event.name} — Tactic{dayNum ? ` · DAY ${dayNum}` : ""}</Text>
           <Text style={s.heroMeta}>{[when, event.location, event.country, tl && `TL: ${tl}`].filter(Boolean).join("   ·   ")}</Text>
         </View>
 
         <View style={s.body}>
-          {hyroxDays.map((d: HyroxDayPlan) => (
+          {hyroxDays.map((d: HyroxDayPlan, di: number) => (
             <Fragment key={d.date}>
-            <View style={s.dayCard}>
+            <View style={s.dayCard} break={di > 0}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Text style={s.dayTitle}>{fmtD(d.date)}</Text>
                 {d.callTime ? <Text style={s.callChip}>Call {d.callTime}</Text> : null}
@@ -212,7 +210,7 @@ export function TacticPdf({ event, onlyDate, dayNum }: { event: EventDTO; onlyDa
               </View>
             </View>
             {((d.tactic.switchGroups || []).length > 0 || hasBreakSched(d)) && (
-            <View style={[s.dayCard, { marginTop: 16 }]} break>
+            <View style={[s.dayCard, { marginTop: 8 }]} break>
               {(d.tactic.switchGroups || []).length > 0 && (
                 <View>
                   <Text style={s.sectionLabel}>Switch — move to new station · new card</Text>
