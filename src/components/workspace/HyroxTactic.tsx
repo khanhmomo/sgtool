@@ -981,12 +981,16 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
     const range = dateRange(event.date.slice(0, 10), (event.endDate || "").slice(0, 10));
     const saved = (event.hyrox || []).map((d) => d.date).filter(Boolean);
     const dates = [...range, ...saved];
-    return [...new Set(dates)].sort().map((date) => ({
-      date,
-      callTime: event.hyrox?.find((x) => x.date === date)?.callTime || "",
-      published: !!event.hyrox?.find((x) => x.date === date)?.published,
-      tactic: normTactic(event.hyrox?.find((x) => x.date === date)?.tactic || defaultTactic()),
-    }));
+    return [...new Set(dates)].sort().map((date) => {
+      const sd = event.hyrox?.find((x) => x.date === date);
+      return {
+        ...sd, // keep note and any other persisted fields
+        date,
+        callTime: sd?.callTime || "",
+        published: !!sd?.published,
+        tactic: normTactic(sd?.tactic || defaultTactic()),
+      };
+    });
   });
   const [activeDate, setActiveDate] = useState(days[0]?.date || "");
   /** Shift index whose break schedule is open in the fullscreen editor, or null */

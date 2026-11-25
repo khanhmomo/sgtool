@@ -3,7 +3,6 @@
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  LayoutDashboard,
   Building2,
   Users,
   Target,
@@ -14,10 +13,14 @@ import {
   Megaphone,
   Inbox,
   Camera,
+  Copy,
+  Check,
+  ExternalLink,
+  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui";
 import type { EventDTO, FileDTO } from "@/types";
-import OverviewTab from "./OverviewTab";
 import BriefingTab from "./BriefingTab";
 import InfoTab from "./InfoTab";
 import TeamTab from "./TeamTab";
@@ -30,7 +33,6 @@ import RequestsTab from "./RequestsTab";
 import SettingsTab from "./SettingsTab";
 
 const TABS = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "briefing", label: "Briefing", icon: Megaphone },
   { id: "info", label: "Information", icon: Building2 },
   { id: "team", label: "Team", icon: Users },
@@ -73,7 +75,7 @@ export default function EventWorkspace({
       const t = TABS.find((x) => x.id === saved)?.id as TabId;
       if (t) return t;
     }
-    return "overview";
+    return "info";
   });
   const setTab = useCallback(
     (t: TabId) => {
@@ -88,6 +90,31 @@ export default function EventWorkspace({
   );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+
+  // Share link actions — live in the tab bar now that the overview tab is gone
+  const [copied, setCopied] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const shareUrl = event.shareSlug ? `/e/${event.shareSlug}` : null;
+  async function copyLink() {
+    if (!shareUrl) return;
+    await navigator.clipboard.writeText(`${window.location.origin}${shareUrl}`).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+  async function share(action: string) {
+    setSharing(true);
+    try {
+      const res = await fetch(`/api/events/${event.id}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (res.ok) patch({ shareSlug: data.event.shareSlug });
+    } finally {
+      setSharing(false);
+    }
+  }
 
   // HYROX + Fitness Indoor have no course/GPX — hide the map tab entirely
   const noCourse = /hyrox|fitness\s*indoor/i.test(event.type);
@@ -150,11 +177,36 @@ export default function EventWorkspace({
           <div className="ml-auto flex shrink-0 items-center gap-2 pl-3">
             {saving && <span className="text-xs text-slate-400">Saving…</span>}
             {saveError && <span className="text-xs font-medium text-red-600">{saveError}</span>}
+            {shareUrl ? (
+              <>
+                <button
+                  onClick={copyLink}
+                  title="Copy the photographer link"
+                  className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-200"
+                >
+                  {copied ? <Check size={13} className="text-emerald-600" /> : <Copy size={13} />}
+                  <span className="hidden sm:inline">{copied ? "Copied!" : "Copy event link"}</span>
+                </button>
+                <a
+                  href={shareUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open the photographer view"
+                  className="flex items-center gap-1 rounded-md bg-blue-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-blue-500"
+                >
+                  <ExternalLink size={13} />
+                  <span className="hidden sm:inline">Photographer view</span>
+                </a>
+              </>
+            ) : (
+              <Button size="xs" variant="accent" loading={sharing} onClick={() => share("enable")}>
+                <Share2 size={12} /> <span className="hidden sm:inline">Share event</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
-      {tab === "overview" && <OverviewTab {...props} goTab={setTab} />}
       {tab === "briefing" && <BriefingTab {...props} />}
       {tab === "info" && <InfoTab {...props} />}
       {tab === "team" && <TeamTab {...props} />}
