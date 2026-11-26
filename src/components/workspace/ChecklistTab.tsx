@@ -7,9 +7,10 @@ import { cn, uid } from "@/lib/utils";
 import type { ChecklistGroup, TemplateDTO } from "@/types";
 import { parseChecklist } from "@/lib/checklist";
 import type { TabProps } from "./EventWorkspace";
+import { useLiveState } from "./useLiveState";
 
 export default function ChecklistTab({ event, patch }: TabProps) {
-  const [groups, setGroups] = useState<ChecklistGroup[]>(event.checklist);
+  const [groups, setGroups] = useLiveState<ChecklistGroup[]>(event.checklist);
   const [newItemText, setNewItemText] = useState<Record<string, string>>({});
   const [newGroup, setNewGroup] = useState("");
   const [importOpen, setImportOpen] = useState(false);

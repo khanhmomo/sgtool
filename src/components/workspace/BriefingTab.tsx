@@ -6,10 +6,11 @@ import { Button, Card, CardHeader, Empty, Textarea } from "@/components/ui";
 import Markdown from "@/components/Markdown";
 import type { TemplateDTO } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useLiveState } from "./useLiveState";
 import { useAutosave } from "./autosave";
 
 export default function BriefingTab({ event, patch }: TabProps) {
-  const [text, setText] = useState(event.briefing || "");
+  const [text, setText] = useLiveState(event.briefing || "");
   useAutosave(text, patch, (v) => ({ briefing: v }));
   const [templates, setTemplates] = useState<TemplateDTO[] | null>(null);
   const [importOpen, setImportOpen] = useState(false);

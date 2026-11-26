@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
 import { CalendarClock, Plus, Trash2 } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input } from "@/components/ui";
 import { uid } from "@/lib/utils";
 import type { ScheduleItem } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useLiveState } from "./useLiveState";
 import { useAutosave } from "./autosave";
 
 export default function ScheduleTab({ event, patch }: TabProps) {
-  const [items, setItems] = useState<ScheduleItem[]>(event.schedule);
+  const [items, setItems] = useLiveState<ScheduleItem[]>(event.schedule);
   useAutosave(items, patch, (v) => ({ schedule: v }));
 
   function update(i: number, k: keyof ScheduleItem, val: string) {

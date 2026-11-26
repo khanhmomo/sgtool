@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
@@ -120,8 +120,13 @@ export default function EventWorkspace({
   const noCourse = /hyrox|fitness\s*indoor/i.test(event.type);
   const visibleTabs = TABS.filter((t) => !(t.id === "course" && noCourse));
 
+  // Count of in-flight PATCHes — live polling never applies server state while
+  // a save is in flight, so typing is never reverted by a stale snapshot.
+  const inFlightRef = useRef(0);
+
   const patch = useCallback(
     async (fields: Partial<EventDTO>) => {
+      inFlightRef.current += 1;
       setSaving(true);
       setSaveError("");
       // optimistic local update
@@ -143,11 +148,32 @@ export default function EventWorkspace({
         setSaveError("Save failed. Check your connection.");
         return false;
       } finally {
-        setSaving(false);
+        inFlightRef.current -= 1;
+        // Accurate even with overlapping PATCHes — live-sync hooks key off this
+        setSaving(inFlightRef.current > 0);
       }
     },
     [event.id]
   );
+
+  // Live collaboration — poll the event every 3s so other team leaders' edits
+  // appear automatically. Skipped while hidden or while a save is in flight;
+  // applied only when updatedAt actually changed, so idle polls cost no re-render.
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      if (document.hidden || inFlightRef.current > 0) return;
+      try {
+        const res = await fetch(`/api/events/${event.id}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.event || inFlightRef.current > 0) return;
+        setEvent((cur) => (data.event.updatedAt === cur.updatedAt ? cur : data.event));
+      } catch {
+        // network blip — next tick retries
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [event.id]);
 
   const props: TabProps = { event, patch, setEvent, saving };
 

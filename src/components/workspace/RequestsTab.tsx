@@ -6,6 +6,7 @@ import { Card, CardHeader, Empty, Textarea } from "@/components/ui";
 import { cn, fmtDate } from "@/lib/utils";
 import type { EventRequest } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useLiveState } from "./useLiveState";
 import { useAutosave } from "./autosave";
 
 const STATUS_META: Record<EventRequest["status"], { label: string; cls: string }> = {
@@ -16,7 +17,7 @@ const STATUS_META: Record<EventRequest["status"], { label: string; cls: string }
 };
 
 export default function RequestsTab({ event, patch }: TabProps) {
-  const [requests, setRequests] = useState<EventRequest[]>(event.requests || []);
+  const [requests, setRequests] = useLiveState<EventRequest[]>(event.requests || []);
   const [open, setOpen] = useState<string | null>(null);
   useAutosave(requests, patch, (v) => ({ requests: v }));
 

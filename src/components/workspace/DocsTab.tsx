@@ -19,6 +19,7 @@ import { uid } from "@/lib/utils";
 import Markdown from "@/components/Markdown";
 import type { DocCategory, EventDoc, TemplateDTO } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useLiveState } from "./useLiveState";
 import { useAutosave } from "./autosave";
 
 const DOC_CATS: DocCategory[] = ["tactic", "guide", "checklist", "note", "other"];
@@ -26,8 +27,8 @@ const DOC_CATS: DocCategory[] = ["tactic", "guide", "checklist", "note", "other"
 type EditingDoc = EventDoc & { __isNew?: boolean };
 
 export default function DocsTab({ event, patch, saving }: TabProps) {
-  const [docs, setDocs] = useState<EventDoc[]>(event.documents);
-  const [notes, setNotes] = useState(event.notes);
+  const [docs, setDocs] = useLiveState<EventDoc[]>(event.documents);
+  const [notes, setNotes] = useLiveState(event.notes);
   useAutosave(notes, patch, (v) => ({ notes: v }));
   const [editing, setEditing] = useState<EditingDoc | null>(null);
   const [templates, setTemplates] = useState<TemplateDTO[]>([]);

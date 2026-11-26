@@ -5,6 +5,7 @@ import { Camera, Check, Copy, RefreshCw, Search } from "lucide-react";
 import { Card, CardHeader } from "@/components/ui";
 import { cn, dateRangeYmd, fmtDate } from "@/lib/utils";
 import type { TabProps } from "./EventWorkspace";
+import { useLiveState } from "./useLiveState";
 
 type DayChecks = Record<string, { checked: boolean; by?: string; at?: number }>;
 type Checks = Record<string, DayChecks>;
@@ -13,7 +14,7 @@ type Checks = Record<string, DayChecks>;
 export default function CameraCheckTab({ event }: TabProps) {
   const dates = dateRangeYmd(event.date.slice(0, 10), (event.endDate || event.date).slice(0, 10), 31);
   const [activeDate, setActiveDate] = useState(dates[0] || "undated");
-  const [checks, setChecks] = useState<Checks>(event.cameraCheck || {});
+  const [checks, setChecks] = useLiveState<Checks>(event.cameraCheck || {});
   const [shareKey, setShareKey] = useState("");
   const [copied, setCopied] = useState(false);
   const [tick, setTick] = useState(0);

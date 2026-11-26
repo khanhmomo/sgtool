@@ -38,6 +38,7 @@ import ElevationChart from "@/components/ElevationChart";
 import { extractCoords, parseLatLngText } from "@/lib/coords";
 import type { CourseLeg, Position, PositionAnalysis, PreSpot } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useLiveState } from "./useLiveState";
 
 const CourseMap = dynamic(() => import("@/components/CourseMap"), { ssr: false });
 
@@ -55,9 +56,9 @@ const SPOT_COLORS = [
 type EditingPosition = Position & { __isNew?: boolean; latText?: string; lngText?: string };
 
 export default function CourseTab({ event, patch, saving }: TabProps) {
-  const [positions, setPositions] = useState<Position[]>(event.positions);
-  const [preSpots, setPreSpots] = useState<PreSpot[]>(event.preSpots || []);
-  const [course, setCourse] = useState(event.course);
+  const [positions, setPositions] = useLiveState<Position[]>(event.positions);
+  const [preSpots, setPreSpots] = useLiveState<PreSpot[]>(event.preSpots || []);
+  const [course, setCourse] = useLiveState(event.course);
   const [editing, setEditing] = useState<EditingPosition | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCourse, setShowCourse] = useState(true);

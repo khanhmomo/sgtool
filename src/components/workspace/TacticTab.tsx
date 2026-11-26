@@ -19,6 +19,7 @@ import { Button, Card, CardHeader, Empty, Input, Select, Textarea, Notice } from
 import { uid, spotMapUrl, fmtDate, dateRangeYmd } from "@/lib/utils";
 import type { TacticCategory, TacticDay, TacticRow } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useLiveState } from "./useLiveState";
 import HyroxTactic from "./HyroxTactic";
 import { useAutosave } from "./autosave";
 
@@ -163,8 +164,8 @@ export default function TacticTab({ event, patch, setEvent, saving }: TabProps) 
   const byKey = (key: string) => days.find((d) => dayKey(d) === key);
   // Tab mode: implied by the event shape, or once the TL creates a tab
   const multiDay = baseMultiDay || days.length > 0;
-  const [rowsState, setRowsState] = useState<TacticRow[]>(event.tactic || []);
-  const [notes, setNotes] = useState(event.notes || "");
+  const [rowsState, setRowsState] = useLiveState<TacticRow[]>(event.tactic || []);
+  const [notes, setNotes] = useLiveState(event.notes || "");
   useAutosave(rowsState, patch, (v) => ({ tactic: v }));
   // True once the TL adds/removes a tab — then saved tacticDays stay authoritative
   const [managed, setManaged] = useState(

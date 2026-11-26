@@ -8,6 +8,7 @@ import { BREAK_TPL_CATEGORY, breakTemplateSummary, normBreakTables, parseBreakTe
 import Markdown from "@/components/Markdown";
 import type { HyroxBreakRange, HyroxBreakRow, HyroxDayPlan, HyroxStationPlan, HyroxSwitchGroup, HyroxTactic, Photographer, TemplateDTO } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { canon } from "./useLiveState";
 
 /** Fixed HYROX stations — never reordered or renamed by the user */
 export const HYROX_STATIONS = [
@@ -960,25 +961,62 @@ const normTactic = (t: HyroxTactic): HyroxTactic => {
 
 const dateRange = (start: string, end: string) => dateRangeYmd(start, end, 60);
 
-export default function HyroxTactic({ event, patch, saving }: TabProps) {
-  const [days, setDays] = useState<HyroxDayPlan[]>(() => {
-    // Days cover the event's start→end range PLUS any saved hyrox dates — saved
-    // days outside the range are kept (marked "outside event") so data is never
-    // silently hidden when the event dates change after a tactic was saved.
-    const range = dateRange(event.date.slice(0, 10), (event.endDate || "").slice(0, 10));
-    const saved = (event.hyrox || []).map((d) => d.date).filter(Boolean);
-    const dates = [...range, ...saved];
-    return [...new Set(dates)].sort().map((date) => {
-      const sd = event.hyrox?.find((x) => x.date === date);
-      return {
-        ...sd, // keep note and any other persisted fields
-        date,
-        callTime: sd?.callTime || "",
-        published: !!sd?.published,
-        tactic: normTactic(sd?.tactic || defaultTactic()),
-      };
-    });
+// Days cover the event's start→end range PLUS any saved hyrox dates — saved
+// days outside the range are kept (marked "outside event") so data is never
+// silently hidden when the event dates change after a tactic was saved.
+const buildHyroxDays = (event: TabProps["event"]): HyroxDayPlan[] => {
+  const range = dateRange(event.date.slice(0, 10), (event.endDate || "").slice(0, 10));
+  const saved = (event.hyrox || []).map((d) => d.date).filter(Boolean);
+  const dates = [...range, ...saved];
+  return [...new Set(dates)].sort().map((date) => {
+    const sd = event.hyrox?.find((x) => x.date === date);
+    return {
+      ...sd, // keep note and any other persisted fields
+      date,
+      callTime: sd?.callTime || "",
+      published: !!sd?.published,
+      tactic: normTactic(sd?.tactic || defaultTactic()),
+    };
   });
+};
+
+export default function HyroxTactic({ event, patch, saving }: TabProps) {
+  const [days, setDays] = useState<HyroxDayPlan[]>(() => buildHyroxDays(event));
+  // Live collaboration — when the workspace poll refreshes event.hyrox, merge it
+  // per-day instead of replacing wholesale: adopt server state only for days with
+  // no unsaved local edits, so nobody's typing is ever reverted. Conflicts keep
+  // the local copy — its autosave wins server-side anyway (last write wins).
+  const syncBaseRef = useRef<Map<string, string> | null>(null);
+  useEffect(() => {
+    const incoming = buildHyroxDays(event);
+    const fps = new Map(incoming.map((d) => [d.date, canon(d)]));
+    const base = syncBaseRef.current;
+    if (!base) {
+      // First run — local state was initialized from the same event, nothing to merge
+      syncBaseRef.current = fps;
+      return;
+    }
+    syncBaseRef.current = fps;
+    setDays((local) => {
+      let changed = false;
+      const merged = incoming.map((inc) => {
+        const l = local.find((d) => d.date === inc.date);
+        if (!l) {
+          changed = true;
+          return inc; // day appeared (date range changed remotely)
+        }
+        const incFp = canon(inc);
+        const localFp = canon(l);
+        if (incFp === localFp) return l; // identical — keep object identity, no re-render churn
+        if (incFp === base.get(inc.date)) return l; // server unchanged — local edit in flight
+        if (localFp !== base.get(inc.date)) return l; // conflict — local dirty, keep local
+        changed = true;
+        return inc; // remote change on a clean day — adopt it
+      });
+      return changed ? merged : local;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event.hyrox, event.date, event.endDate]);
   const [activeDate, setActiveDate] = useState(days[0]?.date || "");
   /** Shift index whose break schedule is open in the fullscreen editor, or null */
   const [breakEdit, setBreakEdit] = useState<number | null>(null);

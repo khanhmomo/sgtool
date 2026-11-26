@@ -20,6 +20,7 @@ import {
 import { cn, uid } from "@/lib/utils";
 import type { HotelInfo, Photographer, RoomAssignment, VenueInfo } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useLiveState } from "./useLiveState";
 import { useAutosave } from "./autosave";
 
 function Chip({ acronym, onDragStart, picked, onTap }: { acronym: string; onDragStart: (a: string) => void; picked?: boolean; onTap?: (a: string) => void }) {
@@ -179,8 +180,8 @@ function RoomBoard({
 }
 
 export default function InfoTab({ event, patch }: TabProps) {
-  const [venue, setVenue] = useState<VenueInfo>(event.venue);
-  const [hotels, setHotels] = useState<HotelInfo[]>(event.hotels);
+  const [venue, setVenue] = useLiveState<VenueInfo>(event.venue);
+  const [hotels, setHotels] = useLiveState<HotelInfo[]>(event.hotels);
   useAutosave(venue, patch, (val) => ({ venue: val }));
   useAutosave(hotels, patch, (val) => ({ hotels: val }));
 

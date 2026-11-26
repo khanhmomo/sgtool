@@ -6,12 +6,13 @@ import { Button, Card, CardHeader, Empty, Input, Notice } from "@/components/ui"
 import { uid } from "@/lib/utils";
 import type { Photographer } from "@/types";
 import type { TabProps } from "./EventWorkspace";
+import { useLiveState } from "./useLiveState";
 import { useAutosave } from "./autosave";
 
 const ROLES = ["Photographer", "Team Leader", "Second Shooter", "Drone", "Video", "Runner"];
 
 export default function TeamTab({ event, patch }: TabProps) {
-  const [team, setTeam] = useState<Photographer[]>(event.photographers);
+  const [team, setTeam] = useLiveState<Photographer[]>(event.photographers);
   useAutosave(team, patch, (v) => ({ photographers: v }));
   const [importMsg, setImportMsg] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
   const [equipIdx, setEquipIdx] = useState<number | null>(null);
