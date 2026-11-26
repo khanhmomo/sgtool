@@ -1257,29 +1257,57 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   /** Team acronym/name tags — anything else in a cell is an external (LS) */
   const teamTags = new Set(event.photographers.map((p) => p.acronym || p.name));
 
-  // Rotation alerts — same photographer on the same station across different days.
-  // Recomputed on every render, so alerts appear/disappear in real time.
-  const stationDates = new Map<string, Set<string>>();
+  // Rotation alerts — recomputed on every render, so they appear/disappear live.
+  // Rule 1: same photographer on the same station in BOTH shifts of the same day.
+  // Rule 2: same photographer on the same station on consecutive days.
+  type DupAlert = { name: string; station: string } & (
+    | { kind: "shifts"; date: string; shifts: number[] }
+    | { kind: "days"; dates: string[] }
+  );
+  const stationDayShifts = new Map<string, Set<number>>(); // n@@st@@date -> shift idxs
+  const stationDates = new Map<string, Set<string>>(); // n@@st -> dates
   for (const d of days) {
-    for (const shift of d.tactic?.shifts || []) {
+    (d.tactic?.shifts || []).forEach((shift, si) => {
       for (const st of shift) {
         if (isExternal(st.station)) continue; // LS-crew stations never alert
         for (const n of st.photographers) {
           // Only actual station assignments alert — LS entries and jumper cover don't
           if (!n || !teamTags.has(n)) continue;
-          const key = `${n}@@${st.station}`;
-          const s = stationDates.get(key) || new Set<string>();
-          s.add(d.date);
-          stationDates.set(key, s);
+          const k = `${n}@@${st.station}`;
+          const s1 = stationDayShifts.get(`${k}@@${d.date}`) || new Set<number>();
+          s1.add(si);
+          stationDayShifts.set(`${k}@@${d.date}`, s1);
+          const s2 = stationDates.get(k) || new Set<string>();
+          s2.add(d.date);
+          stationDates.set(k, s2);
         }
       }
+    });
+  }
+  const dupAlerts: DupAlert[] = [];
+  for (const [key, shifts] of stationDayShifts) {
+    if (shifts.size > 1) {
+      const [name, station, date] = key.split("@@");
+      dupAlerts.push({ name, station, kind: "shifts", date, shifts: [...shifts].sort((a, b) => a - b) });
     }
   }
-  const dupAlerts: { name: string; station: string; dates: string[] }[] = [];
+  const dayMs = 24 * 60 * 60 * 1000;
   for (const [key, dates] of stationDates) {
-    if (dates.size > 1) {
-      const [name, station] = key.split("@@");
-      dupAlerts.push({ name, station, dates: [...dates].sort() });
+    const sorted = [...dates].sort();
+    // Maximal runs of consecutive dates (length >= 2) each produce one alert
+    let run = [sorted[0]];
+    for (let i = 1; i <= sorted.length; i++) {
+      const prev = new Date(sorted[i - 1] + "T12:00:00").getTime();
+      const cur = i < sorted.length ? new Date(sorted[i] + "T12:00:00").getTime() : NaN;
+      if (cur - prev === dayMs) {
+        run.push(sorted[i]);
+        continue;
+      }
+      if (run.length > 1) {
+        const [name, station] = key.split("@@");
+        dupAlerts.push({ name, station, kind: "days", dates: [...run] });
+      }
+      run = i < sorted.length ? [sorted[i]] : [];
     }
   }
   dupAlerts.sort((a, b) => a.name.localeCompare(b.name));
@@ -2073,13 +2101,16 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
             <ul className="space-y-1">
               {dupAlerts.map((a) => (
                 <li
-                  key={`${a.name}-${a.station}`}
+                  key={`${a.name}-${a.station}-${a.kind === "shifts" ? a.date : a.dates.join("-")}`}
                   className="rounded bg-white/80 px-1.5 py-1 text-[10px] leading-tight text-amber-900 ring-1 ring-amber-200"
                 >
-                  <span className="font-bold">{a.name}</span> in{" "}
-                  <span className="font-semibold">{a.station}</span>
+                  <span className="font-bold">{a.name}</span> shoots{" "}
+                  <span className="font-semibold">{a.station}</span>{" "}
+                  {a.kind === "shifts" ? "twice the same day" : `${a.dates.length} days in a row`}
                   <span className="block text-amber-700">
-                    {a.dates.map((d) => fmtDate(d)).join(" + ")}
+                    {a.kind === "shifts"
+                      ? `${fmtDate(a.date)} — ${a.shifts.map((si) => `Shift ${si + 1}`).join(" + ")}`
+                      : a.dates.map((d) => fmtDate(d)).join(" → ")}
                   </span>
                 </li>
               ))}
