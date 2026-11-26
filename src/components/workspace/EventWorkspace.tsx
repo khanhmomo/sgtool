@@ -127,34 +127,63 @@ export default function EventWorkspace({
   // a save is in flight, so typing is never reverted by a stale snapshot.
   const inFlightRef = useRef(0);
 
+  // Serialized saves — one PATCH in flight at a time; calls made while busy
+  // coalesce into a single follow-up batch. This is load-bearing for live collab:
+  // (1) no optimistic update — `event` stays a pure server mirror, so the merge
+  // hooks' base fingerprints never see unsaved local edits (an optimistic write
+  // poisons the base, and the lagging save echo then looks like a clean remote
+  // change → in-progress typing gets reverted);
+  // (2) responses apply in send order — overlapping PATCHes could resolve out of
+  // order and revert state (client-side AND server-side, since last write wins).
+  const saveQueueRef = useRef<{
+    running: boolean;
+    pending: Partial<EventDTO> | null;
+    waiters: ((ok: boolean) => void)[];
+  }>({ running: false, pending: null, waiters: [] });
+
   const patch = useCallback(
-    async (fields: Partial<EventDTO>) => {
-      inFlightRef.current += 1;
-      setSaving(true);
-      setSaveError("");
-      // optimistic local update
-      setEvent((e) => ({ ...e, ...fields }));
-      try {
-        const res = await fetch(`/api/events/${event.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(fields),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          setSaveError(data.error || "Save failed.");
-          return false;
+    (fields: Partial<EventDTO>): Promise<boolean> => {
+      const q = saveQueueRef.current;
+      q.pending = { ...(q.pending || {}), ...fields };
+      const promise = new Promise<boolean>((res) => q.waiters.push(res));
+      if (q.running) return promise;
+      q.running = true;
+
+      void (async () => {
+        while (q.pending) {
+          const batch = q.pending;
+          q.pending = null;
+          const waiters = q.waiters.splice(0);
+          inFlightRef.current += 1;
+          setSaving(true);
+          setSaveError("");
+          let ok = false;
+          try {
+            const res = await fetch(`/api/events/${event.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(batch),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              setSaveError(data.error || "Save failed.");
+            } else {
+              setEvent(data.event);
+              ok = true;
+            }
+          } catch {
+            setSaveError("Save failed. Check your connection.");
+          } finally {
+            inFlightRef.current -= 1;
+            // Accurate even with overlapping PATCHes — live-sync hooks key off this
+            setSaving(inFlightRef.current > 0);
+          }
+          waiters.forEach((w) => w(ok));
         }
-        setEvent(data.event);
-        return true;
-      } catch {
-        setSaveError("Save failed. Check your connection.");
-        return false;
-      } finally {
-        inFlightRef.current -= 1;
-        // Accurate even with overlapping PATCHes — live-sync hooks key off this
-        setSaving(inFlightRef.current > 0);
-      }
+        q.running = false;
+      })();
+
+      return promise;
     },
     [event.id]
   );
