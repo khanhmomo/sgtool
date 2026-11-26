@@ -1238,7 +1238,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
     if (key === "photographers") {
       const hit = isExternal(shift[sti].station)
         ? shift[sti].photographers.includes(name)
-        : shift.some((s) => s.photographers.includes(name));
+        : shift.some((s) => !isExternal(s.station) && s.photographers.includes(name));
       if (hit) return;
     } else if (key === "ls") {
       if (shift.some((s) => (s.ls || []).includes(name))) return;
@@ -1252,7 +1252,13 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const maxP = Math.max(1, ...tactic.switchGroups.map((g) => g.photographers.length));
 
   // Pool status: assigned to a station → green, covering → blue, free → grey
-  const assignedSet = new Set(tactic.shifts.flat().flatMap((s) => [...s.photographers, ...(s.ls || [])]));
+  // Green = shooting a station. LS-crew spots (external stations + ls arrays) don't
+  // count — those people are still free to be assigned as photographers.
+  // Tracked per shift so the pool chip can show a split color: left = shift 1, right = shift 2.
+  const shiftAssigned = tactic.shifts.map(
+    (shift) => new Set(shift.flatMap((s) => (isExternal(s.station) ? [] : s.photographers)))
+  );
+  const assignedSet = new Set(shiftAssigned.flatMap((s) => [...s]));
   const coveringSet = new Set(tactic.shifts.flat().flatMap((s) => s.cover));
   /** Team acronym/name tags — anything else in a cell is an external (LS) */
   const teamTags = new Set(event.photographers.map((p) => p.acronym || p.name));
@@ -2070,17 +2076,41 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
             {event.photographers.map((p) => {
               const tag = p.acronym || p.name;
               const covering = coveringSet.has(tag);
-              const assigned = assignedSet.has(tag);
+              const inS1 = !!shiftAssigned[0]?.has(tag);
+              const inS2 = !!shiftAssigned[1]?.has(tag);
+              const assigned = inS1 || inS2 || assignedSet.has(tag);
+              // Split color: left half = shift 1, right half = shift 2 — but only when the
+              // day genuinely runs two shifts (both have station assignments); a single-shift
+              // day is always full green.
+              const activeShifts = shiftAssigned.filter((s) => s.size > 0).length;
+              const GREEN = "#16a34a", GREY = "#94a3b8";
+              const bg = covering
+                ? "#2563eb"
+                : activeShifts > 1 && assigned && (inS1 || inS2) && !(inS1 && inS2)
+                  ? `linear-gradient(to right, ${inS1 ? GREEN : GREY} 50%, ${inS2 ? GREEN : GREY} 50%)`
+                  : assigned
+                    ? GREEN
+                    : GREY;
               return (
                 <span
                   key={p.id}
                   draggable
                   onDragStart={(e) => e.dataTransfer.setData("text/plain", tag)}
                   onClick={() => poolTap(tag)}
-                  title={covering ? "Covering (jumper)" : assigned ? "Assigned to a station" : "Drag or tap to assign"}
+                  title={
+                    covering
+                      ? "Covering (jumper)"
+                      : inS1 && inS2
+                        ? "Shooting in both shifts"
+                        : inS1
+                          ? "Shooting in Shift 1"
+                          : inS2
+                            ? "Shooting in Shift 2"
+                            : "Drag or tap to assign"
+                  }
+                  style={{ background: bg }}
                   className={cn(
                     "cursor-grab truncate rounded px-2 py-1 text-left text-[11px] font-bold text-white active:cursor-grabbing",
-                    covering ? "bg-blue-600" : assigned ? "bg-green-600" : "bg-slate-400",
                     picked?.name === tag && !picked.src && "ring-2 ring-blue-300"
                   )}
                 >
