@@ -305,9 +305,12 @@ export function StationFitTable({ photographers, withEquipment, fillCells }: { p
   );
 }
 
-/** Stations self-manage their breaks (no jumper cover) */
-/** Stations eligible for break rows — everything except external LS-crewed stations */
-const BREAK_STATIONS = HYROX_STATIONS.filter((s) => !isExternal(s));
+/** Break-schedule matrix stations — the first 3 race stations (SkiErg, Sled Push,
+    Sled Pull). They self-manage breaks (no jumper cover), so their breaks live in
+    the break-schedule matrix below the tactic, not in the per-station cells.
+    Other stations' breaks are edited in-tactic (st.breaks) and covered by jumpers. */
+const BREAK_STATIONS = HYROX_STATIONS.slice(0, 3);
+const isMatrixStation = (s: string) => BREAK_STATIONS.includes(normStation(s));
 
 type BreakRange = HyroxBreakRange;
 
@@ -878,6 +881,7 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                     return { station, m };
                   }).filter(({ m }) => Object.keys(m).length > 0);
                   if (!table.length) return null;
+                  windows.sort(); // HH:MM zero-padded → lexicographic = chronological
                   const hasSelf = table.some(({ m }) => m.__self);
                   return (
                     <div className="overflow-x-auto rounded-md border border-slate-900">
@@ -1197,8 +1201,8 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const applyShiftBreakTemplate = (si: number, body: string) => {
     const data = parseBreakTemplate(body);
     const targets = (tactic.shifts[si] || [])
-      .map((st, sti) => ({ sti, win: data[normStation(st.station)] || [] }))
-      .filter((t) => t.win.length > 0);
+      .map((st, sti) => ({ sti, station: st.station, win: data[normStation(st.station)] || [] }))
+      .filter((t) => t.win.length > 0 && !isMatrixStation(t.station));
     if (!targets.length) return;
     const dirty = targets.some(({ sti }) => normBreaks(tactic.shifts[si][sti].breaks).length > 0);
     if (dirty && !confirm("Replace existing break windows for those stations?")) return;
@@ -1409,6 +1413,8 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
   const breaksCell = (si: number, sti: number, st: HyroxStationPlan) =>
     isExternal(st.station) ? (
       <span className="text-xs text-slate-300">—</span>
+    ) : isMatrixStation(st.station) ? (
+      <span className="text-[10px] text-slate-400">Break schedule ↓</span>
     ) : (
       <div className="space-y-1">
         {normBreaks(st.breaks as unknown as string | BreakRange[]).map((br, bi) => (
@@ -1825,7 +1831,7 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
 
       <Card>
         <CardHeader
-          title="Break schedule — per-station (self-managed, no jumper cover)"
+          title="Break schedule — Station 1 - 3 (no jumper cover)"
           icon={<Users size={15} className="text-blue-600" />}
         />
         <div className="flex flex-wrap items-center gap-2 px-4 pb-4">

@@ -240,8 +240,11 @@ export function TacticPdf({ event, onlyDate, dayNum }: { event: EventDTO; onlyDa
               )}
               {(() => {
                 const perShift = (d.tactic.breaks || []).map((t) => t?.rows || {});
+                // Break matrix is stations 1-3 only (self-managed) — matches the editor/public view
+                const matrixStations = new Set(stationOrder.slice(0, 3));
                 const stations: string[] = [];
                 perShift.forEach((rows) => Object.keys(rows).forEach((st) => {
+                  if (!matrixStations.has(normStation(st).toLowerCase())) return;
                   const kept = (rows[st] || []).some((b) => (b.start && b.end) || b.cover);
                   if (kept && !stations.includes(st)) stations.push(st);
                 }));
@@ -262,6 +265,7 @@ export function TacticPdf({ event, onlyDate, dayNum }: { event: EventDTO; onlyDa
                         });
                         return { st, m };
                       });
+                      windows.sort(); // HH:MM zero-padded → lexicographic = chronological
                       const hasTimed = windows.length > 0;
                       const hasRows = table.some((r) => Object.keys(r.m).length > 0);
                       if (!hasRows) return null;

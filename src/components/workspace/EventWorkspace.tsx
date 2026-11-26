@@ -66,17 +66,20 @@ export default function EventWorkspace({
   const router = useRouter();
   const [event, setEvent] = useState<EventDTO>(initial);
   const [files, setFiles] = useState<FileDTO[]>(initialFiles);
-  const [tab, setTabState] = useState<TabId>(() => {
-    const fromUrl = TABS.find((t) => t.id === initialTab)?.id as TabId;
-    if (fromUrl) return fromUrl;
-    // Fallback: last used tab for this event, stored client-side
-    if (typeof window !== "undefined") {
+  // Always initialize deterministically (server === client) — the localStorage
+  // fallback is applied in an effect after mount to avoid hydration mismatch
+  const [tab, setTabState] = useState<TabId>(
+    () => (TABS.find((t) => t.id === initialTab)?.id as TabId) || "info"
+  );
+  useEffect(() => {
+    if (TABS.some((t) => t.id === initialTab)) return; // explicit ?tab= wins
+    try {
       const saved = localStorage.getItem(`tl-tab-${initial.id}`);
       const t = TABS.find((x) => x.id === saved)?.id as TabId;
-      if (t) return t;
-    }
-    return "info";
-  });
+      if (t && t !== tab) setTabState(t);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const setTab = useCallback(
     (t: TabId) => {
       setTabState(t);
