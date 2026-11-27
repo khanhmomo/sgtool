@@ -212,8 +212,10 @@ export interface HyroxStationPlan {
 
 export interface HyroxSwitchGroup {
   id: string;
-  name: string; // group label
+  name: string; // group label (or separator label when separator=true)
   photographers: string[]; // ordered — 1st moves to 2nd's station, etc.
+  stations?: string[]; // stations[i] = station photographers[i] is currently at
+  separator?: boolean; // named divider row between groups (e.g. "Round 2") — no photographers
 }
 
 /** One scheduled break for a station — window plus who covers it */

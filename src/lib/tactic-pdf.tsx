@@ -39,6 +39,8 @@ const s = StyleSheet.create({
   sectionLabel: { fontSize: 7, fontFamily: "Helvetica-Bold", color: C.sub, textTransform: "uppercase", letterSpacing: 1.1, marginTop: 6, marginBottom: 2 },
   arrow: { fontSize: 11, fontFamily: "Helvetica-Bold", color: C.blue, textAlign: "center" },
   groupName: { fontFamily: "Helvetica-Bold", fontSize: 8.5, color: C.blue },
+  sepRow: { flexDirection: "row", backgroundColor: C.head, borderBottomWidth: 0.6, borderBottomColor: C.line, paddingVertical: 3, alignItems: "center", justifyContent: "center" },
+  sepTxt: { color: C.yellow, fontSize: 7, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.2 },
   footer: { marginTop: 6, paddingTop: 4, borderTopWidth: 0.6, borderTopColor: C.line, fontSize: 6.5, color: C.faint },
 });
 
@@ -216,19 +218,25 @@ export function TacticPdf({ event, onlyDate, dayNum }: { event: EventDTO; onlyDa
                   <Text style={s.sectionLabel}>Switch — move to new station · new card</Text>
                   <View style={s.table}>
                     <View style={s.thRow}>
-                      <Col w="13%" head><Text>Group</Text></Col>
                       {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                        <Col key={n} w="10.9%" head last={n === 8}><Text>{n === 1 ? "1st" : `> ${n}`}</Text></Col>
+                        <Col key={n} w="12.5%" head last={n === 8}><Text>{n === 1 ? "1st" : `> ${n}`}</Text></Col>
                       ))}
                     </View>
                     {d.tactic.switchGroups.map((g, gi) => {
-                      const people = g.photographers.filter(Boolean).slice(0, 8);
+                      if (g.separator) {
+                        return (
+                          <View key={g.id} wrap={false} style={[s.sepRow, gi === d.tactic.switchGroups.length - 1 ? { borderBottomWidth: 0 } : {}]}>
+                            <Text style={s.sepTxt}>{g.name || "—"}</Text>
+                          </View>
+                        );
+                      }
+                      const people = g.photographers.slice(0, 8); // no compaction — indexes must stay aligned with g.stations
                       return (
                         <View key={g.id} wrap={false} style={[s.tr, gi === d.tactic.switchGroups.length - 1 ? { borderBottomWidth: 0 } : {}]}>
-                          <Col w="13%"><Text style={s.groupName}>{g.name}</Text></Col>
                           {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-                            <Col key={i} w="10.9%" last={i === 7}>
+                            <Col key={i} w="12.5%" last={i === 7}>
                               <Text style={s.dim}>{people[i] ? (i === 0 ? people[i] : `> ${people[i]}`) : ""}</Text>
+                              {g.stations?.[i] && people[i] ? <Text style={[s.tiny, { fontSize: 6.5, textTransform: "uppercase" }]}>{g.stations[i]}</Text> : null}
                             </Col>
                           ))}
                         </View>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlarmClock, AlertTriangle, Aperture, BookOpen, ChevronDown, ChevronUp, Copy, Download, ExternalLink, Eye, EyeOff, Plus, Trash2, Users, X } from "lucide-react";
+import { AlarmClock, AlertTriangle, Aperture, BookOpen, ChevronDown, ChevronUp, Copy, Download, ExternalLink, Eye, EyeOff, Plus, SeparatorHorizontal, Trash2, Users, X } from "lucide-react";
 import { Button, Card, CardHeader, Input, Select, Textarea } from "@/components/ui";
 import { cn, fmtDate, uid, dateRangeYmd } from "@/lib/utils";
 import { BREAK_TPL_CATEGORY, breakTemplateSummary, normBreakTables, parseBreakTemplate } from "@/lib/hyrox-breaks";
@@ -823,25 +823,40 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
           </p>
           <div className="overflow-x-auto rounded-md border border-slate-900">
             <table className="w-full border-collapse text-left text-xs">
-              <thead>
-                <tr className="bg-[#FFED00] text-[10px] uppercase tracking-wider text-slate-900">
-                  <th className="border border-slate-900 px-3 py-2">Group</th>
-                  {Array.from({ length: maxP }).map((_, i) => (
-                    <th key={i} className="border border-slate-900 px-3 py-2 whitespace-nowrap">Photo {i + 1}</th>
-                  ))}
-                </tr>
-              </thead>
               <tbody>
-                {groups.map((g) => (
-                  <tr key={g.id} className="bg-white text-slate-900">
-                    <td className="border border-slate-900 bg-[#FFED00] px-3 py-2 font-bold whitespace-nowrap">{g.name}</td>
-                    {Array.from({ length: maxP }).map((_, i) => (
-                      <td key={i} className="border border-slate-900 px-3 py-2 font-bold whitespace-nowrap">
-                        {g.photographers[i] ? (i > 0 ? "→ " : "") + g.photographers[i] : "—"}
+                {groups.map((g) =>
+                  g.separator ? (
+                    <tr key={g.id}>
+                      <td
+                        colSpan={maxP * 2 - 1}
+                        className="bg-slate-900 px-3 py-1.5 text-left text-[10px] font-black uppercase tracking-widest text-[#FFED00]"
+                      >
+                        {g.name || "—"}
                       </td>
-                    ))}
+                    </tr>
+                  ) : (
+                  <tr key={g.id} className="bg-white text-slate-900">
+                    {Array.from({ length: maxP }).flatMap((_, i) => [
+                      <td key={`p${i}`} className="px-3 py-2 font-bold whitespace-nowrap">
+                        {g.photographers[i] ? (
+                          <>
+                            {g.photographers[i]}
+                            {g.stations?.[i] && (
+                              <span className="block text-[9px] font-semibold uppercase tracking-wide text-slate-500">{g.stations[i]}</span>
+                            )}
+                          </>
+                        ) : null}
+                      </td>,
+                      // narrow arrow column between photos — shows the rotation direction
+                      // arrow only when the next slot actually has someone — cell stays
+                      // (empty) otherwise so columns keep aligning across rows
+                      ...(i < maxP - 1
+                        ? [<td key={`a${i}`} className="px-1 py-2 text-center font-bold text-slate-400">{g.photographers[i + 1] ? "→" : ""}</td>]
+                        : []),
+                    ])}
                   </tr>
-                ))}
+                  )
+                )}
               </tbody>
             </table>
           </div>
@@ -1123,6 +1138,14 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
 
   const addGroup = () =>
     touch({ ...tactic, switchGroups: [...tactic.switchGroups, { id: uid(), name: `Group ${tactic.switchGroups.length + 1}`, photographers: [""] }] });
+  /** Insert a named separator row (e.g. "Round 2") above the row with id `beforeId` — or at the end when omitted */
+  const addSeparator = (beforeId?: string) => {
+    const sep: HyroxSwitchGroup = { id: uid(), name: "", photographers: [], separator: true };
+    const list = [...tactic.switchGroups];
+    const at = beforeId ? list.findIndex((g) => g.id === beforeId) : list.length;
+    list.splice(at < 0 ? list.length : at, 0, sep);
+    touch({ ...tactic, switchGroups: list });
+  };
   const updateGroup = (id: string, p: Partial<HyroxSwitchGroup>) =>
     touch({ ...tactic, switchGroups: tactic.switchGroups.map((g) => (g.id === id ? { ...g, ...p } : g)) });
   const removeGroup = (id: string) =>
@@ -1763,7 +1786,12 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
         <CardHeader
           title="Switch schedule"
           icon={<Users size={15} className="text-blue-600" />}
-          action={<Button size="sm" variant="outline" onClick={addGroup}><Plus size={14} /> Group</Button>}
+          action={
+            <div className="flex gap-1.5">
+              <Button size="sm" variant="outline" onClick={() => addSeparator()}><SeparatorHorizontal size={14} /> Separator</Button>
+              <Button size="sm" variant="outline" onClick={addGroup}><Plus size={14} /> Group</Button>
+            </div>
+          }
         />
         <div className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-sm">
@@ -1778,6 +1806,32 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {tactic.switchGroups.map((g) => (
+                g.separator ? (
+                  <tr key={g.id} className="bg-slate-100">
+                    <td colSpan={maxP + 1} className="px-4 py-1.5">
+                      <Input
+                        value={g.name}
+                        placeholder='Separator label — e.g. "Round 2"'
+                        onChange={(e) => updateGroup(g.id, { name: e.target.value })}
+                        className="border-dashed bg-white/70 font-semibold"
+                      />
+                    </td>
+                    <td className="px-2 py-1.5 text-right">
+                      <div className="flex items-center gap-1">
+                        <button
+                          title="Insert separator above"
+                          onClick={() => addSeparator(g.id)}
+                          className="rounded p-1 text-slate-400 hover:bg-slate-100"
+                        >
+                          <SeparatorHorizontal size={14} />
+                        </button>
+                        <button title="Remove separator" onClick={() => removeGroup(g.id)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
                 <tr key={g.id}>
                   <td className="px-4 py-1.5">
                     <Input value={g.name} onChange={(e) => updateGroup(g.id, { name: e.target.value })} />
@@ -1791,9 +1845,24 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                           photographers[i] = e.target.value.trim();
                           // keep array dense but allow trailing blanks
                           while (photographers.length > 1 && !photographers[photographers.length - 1]) photographers.pop();
-                          updateGroup(g.id, { photographers: photographers.length ? photographers : [""] });
+                          const stations = (g.stations || []).slice(0, photographers.length);
+                          updateGroup(g.id, { photographers: photographers.length ? photographers : [""], stations });
                         }}
                       />
+                      <Select
+                        value={g.stations?.[i] || ""}
+                        onChange={(e) => {
+                          const stations = Array.from({ length: Math.max(g.photographers.length, i + 1) }, (_, x) => g.stations?.[x] || "");
+                          stations[i] = e.target.value;
+                          updateGroup(g.id, { stations });
+                        }}
+                        className="mt-1 px-1 py-1 text-[11px] leading-tight"
+                      >
+                        <option value=""></option>
+                        {HYROX_STATIONS.filter((st) => !isExternal(st)).map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </Select>
                     </td>
                   ))}
                   <td className="px-2 py-1.5 text-right">
@@ -1805,12 +1874,20 @@ export default function HyroxTactic({ event, patch, saving }: TabProps) {
                       >
                         <Plus size={14} />
                       </button>
+                      <button
+                        title="Insert separator above"
+                        onClick={() => addSeparator(g.id)}
+                        className="rounded p-1 text-slate-400 hover:bg-slate-100"
+                      >
+                        <SeparatorHorizontal size={14} />
+                      </button>
                       <button title="Remove group" onClick={() => removeGroup(g.id)} className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600">
                         <Trash2 size={14} />
                       </button>
                     </div>
                   </td>
                 </tr>
+                )
               ))}
             </tbody>
           </table>
