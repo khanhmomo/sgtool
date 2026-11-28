@@ -530,26 +530,13 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
   const breaks = normBreakTables(hyrox.breaks);
   // Per-shift station filter — key = shift index, value = station name ("ALL" = no filter)
   const [stationFilter, setStationFilter] = useState<Record<number, string>>({});
-  // Station notes are hidden behind a per-row "Note" toggle
-  const [noteOpen, setNoteOpen] = useState<Set<string>>(new Set());
-  const toggleNote = (k: string) =>
-    setNoteOpen((prev) => { const n = new Set(prev); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   // Mobile shift scroller — which shift card is currently snapped into view
   const shiftScrollRef = useRef<HTMLDivElement>(null);
   const [activeShift, setActiveShift] = useState(0);
-  // Print (Save PDF): expand all notes and reset station filters so the
-  // printout contains the complete tactic, not just the visible slice.
+  // Print (Save PDF): reset station filters so the printout contains the
+  // complete tactic, not just the visible slice. (Notes are always shown.)
   useEffect(() => {
-    const open = () => {
-      const keys = new Set<string>();
-      shifts.forEach((sh, si) =>
-        sh.forEach((st) => {
-          if (st.note) { keys.add(`${si}:${st.station}`); keys.add(`m${si}:${st.station}`); }
-        })
-      );
-      setNoteOpen(keys);
-      setStationFilter({});
-    };
+    const open = () => setStationFilter({});
     window.addEventListener("beforeprint", open);
     return () => window.removeEventListener("beforeprint", open);
   });
@@ -649,18 +636,7 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                         {stationLabel(st.station)}
                       </span>
                       {st.note && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => toggleNote(`${si}:${st.station}`)}
-                            className="mt-0.5 block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-200 print:hidden"
-                          >
-                            {noteOpen.has(`${si}:${st.station}`) ? "Hide note" : "View note"}
-                          </button>
-                          {noteOpen.has(`${si}:${st.station}`) && (
-                            <div className="mt-0.5 whitespace-normal text-[10px] font-normal text-slate-600"><Markdown text={st.note} /></div>
-                          )}
-                        </>
+                        <div className="mt-0.5 whitespace-normal text-[10px] font-normal text-slate-600"><Markdown text={st.note} /></div>
                       )}
                     </td>
                     <td className="border border-slate-900 px-3 py-2">
@@ -712,17 +688,8 @@ export function HyroxPublicView({ hyrox, team, callTime, dayNote }: { hyrox: Hyr
                     <span className="rounded bg-[#FFED00] px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide text-slate-900">
                       {stationLabel(st.station)}
                     </span>
-                    {st.note && (
-                      <button
-                        type="button"
-                        onClick={() => toggleNote(`m${si}:${st.station}`)}
-                        className="ml-auto rounded bg-slate-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 print:hidden"
-                      >
-                        {noteOpen.has(`m${si}:${st.station}`) ? "Hide note" : "View note"}
-                      </button>
-                    )}
                   </div>
-                  {st.note && noteOpen.has(`m${si}:${st.station}`) && (
+                  {st.note && (
                     <div className="border-b border-slate-100 px-3 py-1.5 text-[11px] text-slate-600">
                       <Markdown text={st.note} />
                     </div>
