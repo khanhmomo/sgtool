@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, CheckSquare, CreditCard, Download, Plus, Trash2, X } from "lucide-react";
+import { BookOpen, CheckSquare, CreditCard, Download, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button, Card, CardHeader, Empty, Input } from "@/components/ui";
 import { cn, uid } from "@/lib/utils";
 import type { ChecklistGroup, TemplateDTO } from "@/types";
@@ -12,6 +12,7 @@ import { useLiveState } from "./useLiveState";
 export default function ChecklistTab({ event, patch }: TabProps) {
   const [groups, setGroups] = useLiveState<ChecklistGroup[]>(event.checklist);
   const [newItemText, setNewItemText] = useState<Record<string, string>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [newGroup, setNewGroup] = useState("");
   const [importOpen, setImportOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
@@ -33,6 +34,17 @@ export default function ChecklistTab({ event, patch }: TabProps) {
   async function save(next: ChecklistGroup[]) {
     setGroups(next);
     await patch({ checklist: next });
+  }
+
+  function editItem(gi: number, ii: number, text: string) {
+    const t = text.trim();
+    if (!t || t === groups[gi].items[ii].text) return;
+    const next = groups.map((g, gi2) =>
+      gi2 === gi
+        ? { ...g, items: g.items.map((it, ii2) => (ii2 === ii ? { ...it, text: t } : it)) }
+        : g
+    );
+    save(next);
   }
 
   function toggle(gi: number, ii: number) {
@@ -205,14 +217,42 @@ export default function ChecklistTab({ event, patch }: TabProps) {
                     </svg>
                   )}
                 </button>
-                <span
-                  className={cn(
-                    "flex-1 text-sm",
-                    it.done ? "text-slate-400 line-through" : "text-slate-800"
-                  )}
-                >
-                  {it.text}
-                </span>
+                {editingId === it.id ? (
+                  <input
+                    defaultValue={it.text}
+                    autoFocus
+                    onBlur={(e) => {
+                      editItem(gi, ii, e.target.value);
+                      setEditingId(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      if (e.key === "Escape") {
+                        (e.target as HTMLInputElement).value = it.text;
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    className="flex-1 rounded border-none bg-blue-50/60 px-1 py-0.5 text-sm text-slate-800 outline-none ring-1 ring-blue-300"
+                  />
+                ) : (
+                  <>
+                    <span
+                      className={cn(
+                        "flex-1 text-sm",
+                        it.done ? "text-slate-400 line-through" : "text-slate-800"
+                      )}
+                    >
+                      {it.text}
+                    </span>
+                    <button
+                      title="Edit item"
+                      onClick={() => setEditingId(it.id)}
+                      className="rounded p-1 text-slate-300 hover:text-blue-600"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={() =>
                     save(
@@ -221,7 +261,7 @@ export default function ChecklistTab({ event, patch }: TabProps) {
                       )
                     )
                   }
-                  className="rounded p-1 text-slate-300 opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100"
+                  className="rounded p-1 text-slate-300 hover:text-red-600"
                 >
                   <Trash2 size={13} />
                 </button>
